@@ -36,12 +36,32 @@ The project follows a 5-stage pipeline:
 
 ## Getting Started
 
+### Quick Start
+For a rapid introduction, see [QUICKSTART.md](QUICKSTART.md)
+
+### Detailed Workflow
+For comprehensive step-by-step instructions, see [WORKFLOW.md](WORKFLOW.md)
+
+### Installation
+
 1. Install dependencies:
    ```bash
    pip install -r requirements.txt
    ```
 
 2. Follow the pipeline stages in order, starting with `simulation/`
+
+Each folder contains its own README with specific instructions.
+
+## Documentation
+
+- [QUICKSTART.md](QUICKSTART.md) - Get started quickly
+- [WORKFLOW.md](WORKFLOW.md) - Complete pipeline guide
+- `simulation/README.md` - CFD simulation setup
+- `blender/README.md` - Frame generation with Blender
+- `roboflow/README.md` - Dataset management with Roboflow
+- `train/README.md` - YOLO model training
+- `postprocess/README.md` - Detection postprocessing
 
 ## License
 
