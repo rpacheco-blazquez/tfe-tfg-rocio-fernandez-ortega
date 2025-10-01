@@ -205,3 +205,26 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Project-specific
+# Simulation outputs
+simulation/input/
+simulation/output/
+
+# Blender exports
+blender/scenes/*.blend1
+blender/exports/
+
+# Roboflow frames (large image datasets)
+roboflow/frames/
+
+# Training data and models
+train/datasets/
+train/models/
+train/runs/
+train/results/
+
+# Postprocessing outputs
+postprocess/detections/
+postprocess/results/
+postprocess/reports/
