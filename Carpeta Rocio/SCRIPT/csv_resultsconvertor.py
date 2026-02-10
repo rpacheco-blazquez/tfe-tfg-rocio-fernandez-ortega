@@ -1,15 +1,21 @@
 import re
 import csv
 from collections import defaultdict
+import os
 
 def extract_total_elevation_data(input_file, output_file):
     """
     Extrae datos de Total elevation del archivo .res y los guarda en CSV
     
     Args:
-        input_file: Ruta al archivo .res
-        output_file: Ruta al archivo CSV de salida
+        input_file: C:\Users\rocio\OneDrive\Desktop\numericalTFGsegundo.gid
+        output_file: altura_malla.csv
     """
+    
+    # Verificar que el archivo de entrada existe
+    if not os.path.exists(input_file):
+        print(f"❌ Error: El archivo '{input_file}' no existe.")
+        return
     
     # Diccionario para almacenar los datos: {time: {node_id: value}}
     data_by_time = {}
@@ -59,6 +65,11 @@ def extract_total_elevation_data(input_file, output_file):
                     except ValueError:
                         continue
     
+    # Verificar que se encontraron datos
+    if not data_by_time:
+        print("⚠️ Advertencia: No se encontraron datos de Total elevation en el archivo.")
+        return
+    
     # Ordenar tiempos y nodos
     sorted_times = sorted(data_by_time.keys())
     # Usar todos los nodos del 1 al 180
@@ -89,6 +100,25 @@ def extract_total_elevation_data(input_file, output_file):
     print(f"⏱️  Rango de tiempo: {sorted_times[0]:.2f} - {sorted_times[-1]:.2f}")
 
 if __name__ == "__main__":
+    # ========================================
+    # CONFIGURA AQUÍ TUS RUTAS DE ARCHIVO
+    # ========================================
+    
+    # OPCIÓN 1: Especificar rutas directamente
     input_file = "C:\\Users\\rocio\\Repositorio TFG Visual Code\\tfe-tfg-rocio-fernandez-ortega\\Carpeta Rocio\\SCRIPT\\results.txt"
     output_file = "C:\\Users\\rocio\\Repositorio TFG Visual Code\\tfe-tfg-rocio-fernandez-ortega\\Carpeta Rocio\\SCRIPT\\total_elevation_data.csv"
+    
+    # OPCIÓN 2: Pedir al usuario (descomenta estas líneas)
+    # print("🔍 Extractor de datos de Total Elevation")
+    # print("-" * 50)
+    # input_file = input("Ingresa la ruta completa del archivo .txt/.res: ").strip('"')
+    # output_file = input("Ingresa la ruta completa del archivo CSV de salida: ").strip('"')
+    
+    # OPCIÓN 3: Solo nombre de archivo (si están en la misma carpeta que el script)
+    # input_file = "results.txt"
+    # output_file = "total_elevation_data.csv"
+    
+    print(f"\n📂 Archivo de entrada: {input_file}")
+    print(f"💾 Archivo de salida: {output_file}\n")
+    
     extract_total_elevation_data(input_file, output_file)
