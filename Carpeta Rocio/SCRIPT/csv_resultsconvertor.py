@@ -8,7 +8,7 @@ def extract_total_elevation_data(input_file, output_file):
     Extrae datos de Total elevation del archivo .res y los guarda en CSV
     
     Args:
-        input_file: C:\Users\rocio\OneDrive\Desktop\numericalTFGsegundo.gid
+        input_file: C:/Users/rocio/OneDrive/Desktop/numericalTFGsegundo.gid/numericalTFGsegundo.flavia.res
         output_file: altura_malla.csv
     """
     
@@ -70,11 +70,19 @@ def extract_total_elevation_data(input_file, output_file):
         print("⚠️ Advertencia: No se encontraron datos de Total elevation en el archivo.")
         return
     
-    # Ordenar tiempos y nodos
+    # Ordenar tiempos
     sorted_times = sorted(data_by_time.keys())
-    # Usar todos los nodos del 1 al 180
-    max_node = max(all_nodes) if all_nodes else 180
-    all_nodes_range = list(range(1, max_node + 1))
+    
+    # 🔧 INCLUIR TODOS LOS NODOS: del 1 hasta el máximo nodo encontrado
+    if all_nodes:
+        max_node = max(all_nodes)
+        min_node = min(all_nodes)
+        all_nodes_range = list(range(min_node, max_node + 1))
+    else:
+        print("❌ Error: No se encontraron nodos.")
+        return
+    
+    print(f"📍 Generando CSV con TODOS los nodos del {min_node} al {max_node}...")
     
     # Escribir CSV
     with open(output_file, 'w', newline='') as csvfile:
@@ -88,37 +96,36 @@ def extract_total_elevation_data(input_file, output_file):
         for time in sorted_times:
             row = [time]
             for node in all_nodes_range:
-                # Si el nodo no existe en ese tiempo, poner valor vacío
-                value = data_by_time[time].get(node, '')
+                # Si el nodo no tiene datos en este timestep, poner 0.0
+                value = data_by_time[time].get(node, 0.0)
                 row.append(value)
             writer.writerow(row)
     
     print(f"✅ CSV generado exitosamente: {output_file}")
     print(f"📊 Total de timestamps: {len(sorted_times)}")
-    print(f"📍 Total de nodos (existentes): {len(all_nodes)}")
-    print(f"📍 Total de columnas (1-{max_node}): {max_node}")
+    print(f"📍 Nodos CON datos de elevación: {len(all_nodes)}")
+    print(f"📍 Total de columnas generadas: {len(all_nodes_range)}")
+    print(f"📍 Rango de nodos: {min_node} - {max_node}")
     print(f"⏱️  Rango de tiempo: {sorted_times[0]:.2f} - {sorted_times[-1]:.2f}")
+    print(f"\n⚠️  Nota: {len(all_nodes_range) - len(all_nodes)} nodos sin datos tendrán valor 0.0")
+
+
+def extract_altura_malla(input_file, output_file):
+    """
+    Wrapper en español para mantener compatibilidad con llamadas existentes.
+    Llama a `extract_total_elevation_data`.
+    """
+    return extract_total_elevation_data(input_file, output_file)
 
 if __name__ == "__main__":
     # ========================================
     # CONFIGURA AQUÍ TUS RUTAS DE ARCHIVO
     # ========================================
     
-    # OPCIÓN 1: Especificar rutas directamente
-    input_file = "C:\\Users\\rocio\\Repositorio TFG Visual Code\\tfe-tfg-rocio-fernandez-ortega\\Carpeta Rocio\\SCRIPT\\results.txt"
-    output_file = "C:\\Users\\rocio\\Repositorio TFG Visual Code\\tfe-tfg-rocio-fernandez-ortega\\Carpeta Rocio\\SCRIPT\\total_elevation_data.csv"
-    
-    # OPCIÓN 2: Pedir al usuario (descomenta estas líneas)
-    # print("🔍 Extractor de datos de Total Elevation")
-    # print("-" * 50)
-    # input_file = input("Ingresa la ruta completa del archivo .txt/.res: ").strip('"')
-    # output_file = input("Ingresa la ruta completa del archivo CSV de salida: ").strip('"')
-    
-    # OPCIÓN 3: Solo nombre de archivo (si están en la misma carpeta que el script)
-    # input_file = "results.txt"
-    # output_file = "total_elevation_data.csv"
+    input_file = "C:/Users/rocio/OneDrive/Desktop/numericalTFGsegundo.gid/numericalTFGsegundo.flavia.res"
+    output_file = "C:\\Users\\rocio\\Repositorio TFG Visual Code\\tfe-tfg-rocio-fernandez-ortega\\Carpeta Rocio\\SCRIPT\\altura_malla.csv"
     
     print(f"\n📂 Archivo de entrada: {input_file}")
     print(f"💾 Archivo de salida: {output_file}\n")
     
-    extract_total_elevation_data(input_file, output_file)
+    extract_altura_malla(input_file, output_file)
