@@ -19,6 +19,7 @@ import numpy as np
 
 import config
 from modules import (
+    energia_gt_alturanodos,
     energiapred,
     entrenamiento,
     prediccion_videos,
@@ -32,25 +33,33 @@ from modules import (
 # ═════════════════════════════════════════════════════════════════
 # CONTROL — activa / desactiva cada paso del pipeline
 # ═════════════════════════════════════════════════════════════════
+# MODO SEGUR0: por defecto todo está desactivado para que ejecutar main.py no genere
+# imágenes ni graficas automáticamente.
+RUN_SAFE_MODE = True
+
 isTrainingRequired         = False   # entrena el modelo desde cero (tarda horas)
 isPredictionRequired       = False   # corre YOLO sobre train/val/test
 isVideoRequired             = False   # genera vídeos superpuesto + subplot
 isPixelToMetrosRequired    = False   # convierte labels predichos -> z_metros.csv
 isFFTPredRequired          = False   # FFT 1D + 3D de la PREDICCIÓN
 isFFTGTRequired            = False   # FFT 1D + 3D del GROUNDTRUTH
-isBeamformingRequired      = True  # activar beamforming
-isBeamformingPred          = True  # aplicar sobre prediccion
+isBeamformingRequired      = False  # activar beamforming
+isBeamformingPred          = False  # aplicar sobre prediccion
 isBeamformingGT            = False # aplicar sobre GT (alturanodos.csv)
 isComparacionGTvsPredRequired = False  # genera la figura apilada GT vs Predicción
 isEnergiaGTRequired        = False   # gráficas E vs A y S(w) vs w del GT
+isEnergia_GT_alturanodos   = True # gráficas E vs A y S(w) vs w del GT (alturanodos.csv)
 isComparacionGTSpecVsGTNodos = False #comparacion D.Polar de GT(spectrum) y GT (alturanodos)
 isenergiapred              = False # gráficas E vs A y S(w) vs w de la PREDICCIÓN
+
+if RUN_SAFE_MODE:
+    print("MODO SEGUR0 activado: ningún paso de generación de imágenes se ejecutará al lanzar main.py.")
 
 # ═════════════════════════════════════════════════════════════════
 # PASO 1 — ENTRENAMIENTO
 # ═════════════════════════════════════════════════════════════════
 if isTrainingRequired:
-    entrenamiento.entrenar_modelo()
+    modules.entrenamiento.entrenar_modelo()
 else:
     print("PASO 1 (entrenamiento) omitido.")
 
@@ -58,12 +67,12 @@ else:
 # PASO 2 — PREDICCIÓN + VÍDEOS
 # ═════════════════════════════════════════════════════════════════
 if isPredictionRequired:
-    prediccion_videos.predecir_con_modelo()
+    modules.prediccion_videos.predecir_con_modelo()
 else:
     print("PASO 2 (predicción) omitido — usando labels ya existentes.")
 
 if isVideoRequired:
-    prediccion_videos.generar_videos()
+    modules.prediccion_videos.generar_videos()
 else:
     print("PASO 2b (vídeos) omitido.")
 
@@ -89,15 +98,15 @@ if isFFTPredRequired:
     n_frames = z_all_pred.shape[0]
     tiempo_vector = np.arange(n_frames) * config.DELTA_T + 30.0
 
-    z_centrada_pred = fft_analisis.fft_1d_por_keypoint(
+    z_centrada_pred = modules.fft_analisis.fft_1d_por_keypoint(
         z_all_pred, tiempo_vector, config.DIR_SALIDA_FFT_PRED)
 
-    dir_flat, T_flat, amp_flat = fft_analisis.fft_3d_direccional(z_centrada_pred)
-    G_pred, T_pred, A_pred, dir_bins, _ = fft_analisis.agrupar_en_bins(dir_flat, T_flat, amp_flat)
+    dir_flat, T_flat, amp_flat = modules.fft_analisis.fft_3d_direccional(z_centrada_pred)
+    G_pred, T_pred, A_pred, dir_bins, _ = modules.fft_analisis.agrupar_en_bins(dir_flat, T_flat, amp_flat)
 
-    espectro_polar.guardar_csv_bins(G_pred, T_pred, A_pred,
+    modules.espectro_polar.guardar_csv_bins(G_pred, T_pred, A_pred,
                                      config.DIR_SALIDA_FFT_PRED, "espectro_3D_bins_pred.csv")
-    espectro_polar.generar_polar_individual(
+    modules.espectro_polar.generar_polar_individual(
         G_pred, T_pred, A_pred, dir_bins, config.DIR_SALIDA_FFT_PRED,
         "espectro_polar_Pred_FFT3D.png",
         "Espectro direccional Predicción IA (FFT 3D)\nÁngulo=Dirección · Radio=Periodo · Color=Amplitud")
@@ -110,19 +119,19 @@ else:
 G_gt_3d, T_gt_3d, A_gt_3d, dir_bins_gt = None, None, None, None
 
 if isFFTGTRequired:
-    z_all_gt, tiempo_vector_gt = lectura_gt.cargar_z_gt()
-    etiquetas = lectura_gt.etiquetas_gt()
+    z_all_gt, tiempo_vector_gt = modules.lectura_gt.cargar_z_gt()
+    etiquetas = modules.lectura_gt.etiquetas_gt()
 
-    z_centrada_gt = fft_analisis.fft_1d_por_keypoint(
+    z_centrada_gt = modules.fft_analisis.fft_1d_por_keypoint(
         z_all_gt, tiempo_vector_gt, config.DIR_SALIDA_FFT_GT, etiquetas_kp=etiquetas)
 
-    dir_flat_gt, T_flat_gt, amp_flat_gt = fft_analisis.fft_3d_direccional(z_centrada_gt)
-    G_gt_3d, T_gt_3d, A_gt_3d, dir_bins_gt, _ = fft_analisis.agrupar_en_bins(
+    dir_flat_gt, T_flat_gt, amp_flat_gt = modules.fft_analisis.fft_3d_direccional(z_centrada_gt)
+    G_gt_3d, T_gt_3d, A_gt_3d, dir_bins_gt, _ = modules.fft_analisis.agrupar_en_bins(
         dir_flat_gt, T_flat_gt, amp_flat_gt)
 
-    espectro_polar.guardar_csv_bins(G_gt_3d, T_gt_3d, A_gt_3d,
+    modules.espectro_polar.guardar_csv_bins(G_gt_3d, T_gt_3d, A_gt_3d,
                                      config.DIR_SALIDA_FFT_GT, "espectro_3D_bins_GT.csv")
-    espectro_polar.generar_polar_individual(
+    modules.espectro_polar.generar_polar_individual(
         G_gt_3d, T_gt_3d, A_gt_3d, dir_bins_gt, config.DIR_SALIDA_FFT_GT,
         "espectro_polar_GT_FFT3D.png",
         "Espectro direccional Groundtruth (FFT 3D sobre nodos)\nÁngulo=Dirección · Radio=Periodo · Color=Amplitud")
@@ -136,8 +145,8 @@ if isComparacionGTvsPredRequired:
     if G_pred is None or dir_bins is None:
         print("⚠️  Necesitas isFFTPredRequired=True para poder comparar.")
     else:
-        T_gt_spec, A_gt_spec, G_gt_spec = espectro_polar.cargar_gt_spectrum()
-        espectro_polar.generar_comparacion_gt_vs_pred(
+        T_gt_spec, A_gt_spec, G_gt_spec = modules.espectro_polar.cargar_gt_spectrum()
+        modules.espectro_polar.generar_comparacion_gt_vs_pred(
             G_gt_spec, T_gt_spec, A_gt_spec,
             G_pred, T_pred, A_pred,
             dir_bins, config.DIR_SALIDA_FFT_PRED,
@@ -153,8 +162,8 @@ if isComparacionGTSpecVsGTNodos:
     if G_gt_3d is None or dir_bins_gt is None:
         print("⚠️  Necesitas isFFTGTRequired=True para poder comparar.")
     else:
-        T_gt_spec, A_gt_spec, G_gt_spec = espectro_polar.cargar_gt_spectrum()
-        espectro_polar.generar_comparacion_gt_vs_pred(
+        T_gt_spec, A_gt_spec, G_gt_spec = modules.espectro_polar.cargar_gt_spectrum()
+        modules.espectro_polar.generar_comparacion_gt_vs_pred(
             G_gt_spec, T_gt_spec, A_gt_spec,
             G_gt_3d, T_gt_3d, A_gt_3d,
             dir_bins_gt, config.DIR_SALIDA_FFT_GT,
@@ -169,6 +178,14 @@ if isEnergiaGTRequired:
 else:
     print("PASO 7 (energía GT) omitido.")
 
+# ═════════════════════════════════════════════════════════════════
+# PASO 7a — GRÁFICAS DE ENERGÍA DEL GROUNDTRUTH alturanodos.csv
+# ═════════════════════════════════════════════════════════════════
+if isEnergia_GT_alturanodos:
+    energia_gt_alturanodos.generar_graficas_energia_gt_alturanodos()
+else:
+    print("PASO 7a (energía GT alturanodos) omitido.")
+    
 # ═════════════════════════════════════════════════════════════════
 # PASO 7b — GRÁFICAS DE ENERGÍA DE LA PREDICCIÓN
 # ═════════════════════════════════════════════════════════════════

@@ -1,22 +1,24 @@
 """
-modules/energiapred.py
+modules/energia_gt_alturanodos.py
 Graficas de validacion de energia espectral (E vs A) y densidad espectral
-S(w) vs w para la PREDICCION, usando unicamente la FFT 1D por keypoint.
+S(w) vs w para es GT alturanodos.csv, usando unicamente la FFT 1D por keypoint.
 
 Compara:
-  - Espectro FFT de la prediccion (obtenido de z_metros.csv)
+  - Espectro FFT 1D de GT (obtenido de alturanodos.csv)
   - Espectro JONSWAP analitico (ecuaciones 8-11 y 8-12 del manual SeaFEM)
     calculado con los Hs, Tp, Tm01 estimados por FFT 1D
 
-Es el equivalente de energia_gt.py pero para la prediccion.
+Es el equivalente de energia_gt.py.
 """
 
+import glob
 import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
 import config
+from modules import lectura_gt
 
 
 # ==========================================
@@ -30,13 +32,16 @@ def jonswap_8_12(omega, Hs, Tm):
     """
     Espectro JONSWAP segun ecuacion 8-12 del manual SeaFEM.
     omega: array de frecuencias angulares (rad/s)
-    Hs:   altura significativa (m)
-    Tm:   periodo medio Tm01 = 2*pi*m0/m1 (s)
+    Hs:    altura significativa (m)
+    Tm:    periodo medio Tm01 = 2*pi*m0/m1 (s)
     """
+    Tm = float(Tm)
+    if not np.isfinite(Tm) or Tm <= 0:
+        return np.zeros_like(omega, dtype=float)
     sigma = np.where(omega <= 5.24 / Tm, 0.07, 0.09)
     Y     = np.exp(-((0.191 * omega * Tm - 1) / (sigma * np.sqrt(2))) ** 2)
     S     = (155.0 * Hs**2 / (Tm**4 * omega**5)) * (3.3 ** Y) * np.exp(-944.0 * Tm**(-4) * omega**(-4))
-    return S
+    return np.maximum(S, 0)
 
 
 # ==========================================
@@ -50,10 +55,13 @@ def jonswap_8_11(omega, Hs, Tp, eps=3.3):
     """
     Espectro JONSWAP segun ecuacion 8-11 del manual SeaFEM.
     omega: array de frecuencias angulares (rad/s)
-    Hs:   altura significativa (m)
-    Tp:   periodo pico (s)
-    eps:  parametro de picudo (default 3.3)
+    Hs:    altura significativa (m)
+    Tp:    periodo pico (s)
+    eps:   parametro de picudo (default 3.3)
     """
+    Tp = float(Tp)
+    if not np.isfinite(Tp) or Tp <= 0:
+        return np.zeros_like(omega, dtype=float)
     T     = 2 * np.pi / omega
     sigma = np.where(omega <= 6.28 / Tp, 0.07, 0.09)
     Y     = np.exp(-((0.159 * omega * Tp - 1) / (sigma * np.sqrt(2))) ** 2)
@@ -63,19 +71,28 @@ def jonswap_8_11(omega, Hs, Tp, eps=3.3):
     return np.maximum(S, 0)
 
 
-def generar_graficas_energiapred():
+def generar_graficas_energia_gt_alturanodos():
     """
-    Genera graficas S(w) vs w y E vs A de la prediccion comparadas con
+    Genera graficas S(w) vs w y E vs A del GT alturanodos.csv comparadas con
     el espectro JONSWAP analitico (ec. 8-11 y 8-12 del manual SeaFEM).
-    Los parametros Hs, Tp, Tm01 se estiman por FFT 1D sobre z_metros.csv.
+    Los parametros Hs, Tp, Tm01 se estiman por FFT 1D sobre alturanodos.csv.
     """
-    os.makedirs(config.DIR_SALIDA_ENERGIAPRED, exist_ok=True)
+    os.makedirs(config.DIR_SALIDA_ENERGIA_GT, exist_ok=True)
 
-    # ── Cargar z_metros.csv ──────────────────────────────────────
-    print("Cargando z_metros.csv...")
-    df_z    = pd.read_csv(config.RUTA_Z_METROS_PRED, sep=';')
-    cols_kp = [c for c in df_z.columns if c.startswith('kp_')]
-    z_all   = df_z[cols_kp].values.astype(float)
+    # Limpiar salidas previas para que cada ejecución deje solo las gráficas nuevas
+    for old_file in os.listdir(config.DIR_SALIDA_ENERGIA_GT):
+        full_path = os.path.join(config.DIR_SALIDA_ENERGIA_GT, old_file)
+        if os.path.isfile(full_path) and old_file.endswith('.png'):
+            try:
+                os.remove(full_path)
+            except OSError:
+                pass
+
+    # ── Cargar alturanodos.csv ──────────────────────────────────
+    print("Cargando alturanodos.csv...")
+    z_all, _ = lectura_gt.cargar_z_gt()
+    z_all = z_all.astype(float)
+
     N_frames = z_all.shape[0]
     print(f"  Frames: {N_frames}  Keypoints: {z_all.shape[1]}")
 
@@ -85,6 +102,7 @@ def generar_graficas_energiapred():
     Hs_lista, Tp_lista, Tm01_lista, Tm02_lista = [], [], [], []
     freqs_globales = None
     amps_globales  = []
+    etiquetas_kp = lectura_gt.etiquetas_gt()
 
     for kp_id in range(z_all.shape[1]):
         z = z_all[:, kp_id] - np.mean(z_all[:, kp_id])
@@ -111,8 +129,8 @@ def generar_graficas_energiapred():
         m0 = np.trapezoid(S_kp, omega_fil)
         m1 = np.trapezoid(omega_fil * S_kp, omega_fil)
         m2 = np.trapezoid((omega_fil ** 2) * S_kp, omega_fil)
-        T_m01 = 2 * np.pi * m0 / m1 if m1 > 0 else 0
-        T_m02 = np.sqrt(m0 / m2) if m2 > 0 else 0
+        T_m01   = 2*np.pi*m0 / m1          if m1 > 0 else 0
+        T_m02   = np.sqrt(m0 / m2) if m2 > 0 else 0
 
         idx_pico = np.argmax(amps_fil)
         f_pico = freqs_fil[idx_pico]
@@ -133,7 +151,7 @@ def generar_graficas_energiapred():
     Tm01_med = np.mean(Tm01_lista)
     Tm02_med = np.mean(Tm02_lista)
 
-    print(f"\n  Parametros medios de la prediccion:")
+    print(f"\n  Parametros medios del GT:")
     print(f"  Hs   = {Hs_med:.3f} m  (GT: 6.0 m)")
     print(f"  Tp   = {Tp_med:.3f} s  (GT: 9.0 s)")
     print(f"  Tm01 = {Tm01_med:.3f} s")
@@ -154,35 +172,9 @@ def generar_graficas_energiapred():
     S_jon_8_12 = jonswap_8_12(omega_teo, Hs_med, Tm01_med)
     S_jon_8_11 = jonswap_8_11(omega_teo, Hs_med, Tp_med)
 
-    # ── Grafica global S(w) vs w ─────────────────────────────────
-    plt.figure(figsize=(10, 5))
-    plt.plot(omega_teo, S_jon_8_12, color='black',    linewidth=2.5,
-             label=f'JONSWAP ec.8-12 (Hs={Hs_med:.2f}m, Tm01={Tm01_med:.2f}s)')
-    plt.plot(omega_teo, S_jon_8_11, color='gray',     linewidth=2.0, linestyle='--',
-             label=f'JONSWAP ec.8-11 (Hs={Hs_med:.2f}m, Tp={Tp_med:.2f}s)')
-    plt.plot(omega_pos, S_fft,      color='limegreen', linewidth=2,
-             label='Prediccion FFT 1D (promedio keypoints)')
-    plt.stem(omega_pos, S_fft, linefmt='crimson', markerfmt='rx', basefmt=' ',
-             label='Componentes discretas')
-
-    idx_pico_fft = np.argmax(S_fft)
-    plt.axvline(x=omega_pos[idx_pico_fft], color='crimson', linestyle='--', alpha=0.6,
-                label=f'wp_pred = {omega_pos[idx_pico_fft]:.3f} rad/s  ->  Tp = {2*np.pi/omega_pos[idx_pico_fft]:.2f}s')
-
-    plt.title('Espectro de Densidad Energetica - Prediccion vs JONSWAP\nTodos los keypoints (media)')
-    plt.xlabel('Frecuencia angular, w (rad/s)')
-    plt.ylabel('Densidad Espectral, S(w) (m^2 s/rad)')
-    plt.xlim(0, 3.5)
-    plt.grid(True, linestyle=':', alpha=0.6)
-    plt.legend(loc='upper right', fontsize=8)
-    plt.tight_layout()
-    plt.savefig(os.path.join(config.DIR_SALIDA_ENERGIAPRED, "PRED_S_vs_w_global.png"),
-                dpi=150, bbox_inches='tight')
-    plt.close()
-    print("OK PRED_S_vs_w_global.png guardada")
-
     # ── Grafica por keypoint S(w) vs w ───────────────────────────
     print("\nGenerando graficas por keypoint...")
+    generated_kp_files = []
     for kp_id in range(z_all.shape[1]):
         z = z_all[:, kp_id] - np.mean(z_all[:, kp_id])
         N = len(z)
@@ -215,12 +207,12 @@ def generar_graficas_energiapred():
         plt.plot(omega_teo_kp, S_jon_kp_8_11, color='gray',  linewidth=1.5, linestyle='--',
                  label=f'JONSWAP ec.8-11 (Tp={Tp_kp:.2f}s)')
         plt.plot(omega_kp, S_kp, color='teal', linewidth=1.5,
-                 label=f'Prediccion FFT KP_{kp_id:02d}')
+                 label=f'GT FFT KP_{kp_id:02d}')
         plt.axvline(x=omega_kp[idx_pico_kp], color='crimson', linestyle='--', alpha=0.6,
                     label=f'wp = {omega_kp[idx_pico_kp]:.3f} rad/s')
         plt.xlim(0, 3.5)
         plt.grid(True, linestyle=':', alpha=0.5)
-        plt.title(f'Espectro FFT vs JONSWAP - KP_{kp_id:02d}')
+        plt.title(f'Espectro FFT vs JONSWAP - {etiquetas_kp[kp_id]}')
         plt.xlabel('Frecuencia angular, w (rad/s)')
         plt.ylabel('S(w) (m^2 s/rad)')
         texto = (f"Hs = {Hs_kp:.2f} m\nTp = {Tp_kp:.2f} s\n"
@@ -231,40 +223,28 @@ def generar_graficas_energiapred():
                        fontsize=9)
         plt.legend(loc='upper left', fontsize=7)
         plt.tight_layout()
-        plt.savefig(os.path.join(config.DIR_SALIDA_ENERGIAPRED,
-                    f"PRED_S_vs_w_kp_{kp_id:02d}.png"),
-                    dpi=150, bbox_inches='tight')
+        out_file = os.path.join(config.DIR_SALIDA_ENERGIA_GT,
+                                f"GT_S_vs_w_kp_{kp_id:02d}.png")
+        plt.savefig(out_file, dpi=150, bbox_inches='tight')
+        generated_kp_files.append(out_file)
         plt.close()
 
-    # ── Grafica global E vs A ────────────────────────────────────
-    A_all = np.concatenate(amps_globales)
-    E_all = 0.5 * A_all**2
-
-    plt.figure(figsize=(7.5, 4.5))
-    plt.scatter(A_all, E_all, color='royalblue', alpha=0.4, edgecolors='none', s=5,
-                label='Componentes FFT prediccion')
-    a_teo = np.linspace(0, A_all.max(), 100)
-    plt.plot(a_teo, 0.5 * a_teo**2, color='darkorange', linestyle='--', linewidth=1.5,
-             label='E = 0.5*A^2 (Manual SeaFEM ec. 8-5)')
-    plt.title('Validacion Energia Espectral Prediccion\nTodos los keypoints')
-    plt.xlabel('Amplitud armonica A (m)')
-    plt.ylabel('Energia E (m^2)')
-    plt.grid(True, linestyle='--', alpha=0.5)
-    plt.legend(loc='upper left')
-    plt.tight_layout()
-    plt.savefig(os.path.join(config.DIR_SALIDA_ENERGIAPRED, "PRED_E_vs_A_global.png"),
-                dpi=150, bbox_inches='tight')
-    plt.close()
-    print("OK PRED_E_vs_A_global.png guardada")
+    # Borrar cualquier gráfica antigua de keypoints que no pertenezca a los 24 nodos actuales
+    for old_file in glob.glob(os.path.join(config.DIR_SALIDA_ENERGIA_GT, "GT_S_vs_w_kp_*.png")):
+        if os.path.abspath(old_file) not in {os.path.abspath(path) for path in generated_kp_files}:
+            try:
+                os.remove(old_file)
+            except OSError:
+                pass
 
     # ── Guardar tabla resumen ────────────────────────────────────
     pd.DataFrame({
-        'Keypoint_ID': [f"KP_{i:02d}" for i in range(len(Hs_lista))],
+        'Keypoint_ID': etiquetas_kp,
         'Hs_m':        Hs_lista,
         'Tp_s':        Tp_lista,
         'Tm01_s':      Tm01_lista,
         'Tm02_s':      Tm02_lista,
-    }).to_csv(os.path.join(config.DIR_SALIDA_ENERGIAPRED,
-              "resumen_parametros_pred.csv"), index=False, sep=';')
+    }).to_csv(os.path.join(config.DIR_SALIDA_ENERGIA_GT,
+              "resumen_parametros_gt.csv"), index=False, sep=';')
 
-    print(f"\nOK Todo guardado en: {config.DIR_SALIDA_ENERGIAPRED}")
+    print(f"\nOK Todo guardado en: {config.DIR_SALIDA_ENERGIA_GT}")
