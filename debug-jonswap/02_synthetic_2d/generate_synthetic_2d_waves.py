@@ -31,7 +31,8 @@ GAMMA = 3.3  # peak enhancement factor
 
 # Parámetros direccionales
 THETA0 = 0.0  # heading principal (rad) — 0 = hacia +x
-SPREADING_S = 2  # exponente de cos²ˢ(θ/2)
+SPREAD_DEG = 90.0  # ancho total del spreading en grados (±SPREAD_DEG/2)
+SPREADING_S = 3  # exponente de cos²ˢ (3 = cae suave, toca ~0 en los bordes)
 
 # Dominio temporal
 DT = 0.48  # intervalo entre frames (s)
@@ -56,8 +57,10 @@ SEED = 42
 print("=" * 60)
 print("GENERADOR DE OLAS SINTÉTICAS 2D (JONSWAP direccional)")
 print("=" * 60)
-print(f"  Hs={HS} m, Tm01={TM01} s, γ={GAMMA}")
-print(f"  Heading: {np.degrees(THETA0):.0f}°, spreading: cos^{2*SPREADING_S}(θ/2)")
+print(f"  Hs={HS} m, Tm01={TM01} s, gamma={GAMMA}")
+print(
+    f"  Heading: {np.degrees(THETA0):.0f} deg, spreading: cos^{2*SPREADING_S}, width={SPREAD_DEG} deg"
+)
 print(f"  Periodos: {T_MIN}-{T_MAX} s")
 print(f"  Grid: {GRID_ROWS}×{GRID_COLS} puntos sobre {LX}×{LY} m")
 print(f"  Tiempo: {N_FRAMES} frames, dt={DT} s, T_total={T_TOTAL} s")
@@ -83,21 +86,24 @@ def jonswap_8_12(omega, Hs, Tm):
 
 
 # ============================================================
-# 2. SPREADING DIRECCIONAL cos²ˢ(θ/2), normalizado ∫D=1
+# 2. SPREADING DIRECCIONAL — soporte compacto en ±SPREAD_DEG/2
+#    D(θ) = cos²ˢ(π/2 · t) para |t|≤1, 0 fuera
+#    con t = (θ-θ₀)/(Δθ/2),  Δθ = SPREAD_DEG en radianes
 # ============================================================
-def spreading_cos2s(theta, theta0, s):
+def spreading_cos2s(theta, theta0, s, spread_deg):
     """
-    D(θ) = N · cos²ˢ((θ - θ₀)/2)
-    Normalizado como DENSIDAD: ∫_{-π}^{π} D(θ) dθ = 1
-    En discreto: Σ_j D(θ_j) · Δθ = 1  →  Σ_j D(θ_j) = 1/Δθ
+    D(θ) con soporte compacto en [θ₀ - spread/2, θ₀ + spread/2].
+    Normalizado: ∫_{-π}^{π} D(θ) dθ = 1
     """
     dtheta = theta - theta0
     dtheta = np.arctan2(np.sin(dtheta), np.cos(dtheta))  # wrap a [-π, π]
-    D_raw = np.cos(dtheta / 2.0) ** (2 * s)
+    half_width = np.radians(spread_deg / 2.0)  # Δθ/2
+    t = dtheta / half_width  # t ∈ [-π/hw, π/hw]
+    D_raw = np.where(np.abs(t) <= 1.0, np.cos(np.pi / 2.0 * t) ** (2 * s), 0.0)
     # Normalizar para que Σ D_j · Δθ = 1
     dtheta_step = theta[1] - theta[0]
-    Z = np.sum(D_raw) * dtheta_step  # integral numérica de la raw
-    return D_raw / Z  # ahora Σ D_j · Δθ = 1
+    Z = np.sum(D_raw) * dtheta_step
+    return D_raw / Z if Z > 0 else D_raw
 
 
 # ============================================================
@@ -119,7 +125,7 @@ Tm01_cal = m0_cal / m1_cal
 omega_p_cal = omega_cal[np.argmax(S_cal)]
 Tp_cal = 2.0 * np.pi / omega_p_cal
 print(f"\n--- Verificación JONSWAP con Tm_formula={TM_FORMULA} ---")
-print(f"  Hs={Hs_cal:.3f} m, Tm01={Tm01_cal:.3f} s, Tp≈{Tp_cal:.2f} s")
+print(f"  Hs={Hs_cal:.3f} m, Tm01={Tm01_cal:.3f} s, Tp ~ {Tp_cal:.2f} s")
 
 # ── Nº de frecuencias a usar (10 para replicar discretización SeaFEM) ──
 N_FREQS_TARGET = 10  # ← CAMBIA AQUÍ: 10, 50, 100, 499 (todas)
@@ -156,12 +162,12 @@ dtheta = theta_centers[1] - theta_centers[0]
 print(f"\n--- Discretización (N_FREQS_TARGET={N_FREQS_TARGET}) ---")
 print(f"  Frecuencias: {N_FREQS} componentes")
 for i, (f, w) in enumerate(zip(freqs_gen, omega_gen)):
-    print(f"    [{i:2d}] f={f:.4f} Hz  ω={w:.4f} rad/s  T={1/f:.1f}s")
+    print(f"    [{i:2d}] f={f:.4f} Hz  w={w:.4f} rad/s  T={1/f:.1f}s")
 print(
-    f"    Δf ≈ {freqs_gen[1]-freqs_gen[0]:.4f} Hz  Δω ≈ {omega_gen[1]-omega_gen[0]:.4f} rad/s"
+    f"    df ~ {freqs_gen[1]-freqs_gen[0]:.4f} Hz  dw ~ {omega_gen[1]-omega_gen[0]:.4f} rad/s"
 )
-print(f"  Direcciones: {N_DIRS} direcciones (Δθ = {np.degrees(dtheta):.1f}°)")
-print(f"  Total componentes (ω,θ): {N_FREQS} × {N_DIRS} = {N_FREQS * N_DIRS}")
+print(f"  Direcciones: {N_DIRS} direcciones (dtheta = {np.degrees(dtheta):.1f} deg)")
+print(f"  Total componentes (w,theta): {N_FREQS} x {N_DIRS} = {N_FREQS * N_DIRS}")
 
 # ============================================================
 # 5. CONSTRUIR EL ESPECTRO 2D: E(ω,θ) = S(ω) · D(θ)
@@ -170,9 +176,9 @@ print(f"  Total componentes (ω,θ): {N_FREQS} × {N_DIRS} = {N_FREQS * N_DIRS}"
 S_1d = jonswap_8_12(omega_gen, HS, TM_FORMULA)
 
 # Spreading direccional (mismo para todas las frecuencias)
-D_theta = spreading_cos2s(theta_centers, THETA0, SPREADING_S)
+D_theta = spreading_cos2s(theta_centers, THETA0, SPREADING_S, SPREAD_DEG)
 # Verificar normalización: ∫D(θ)dθ debe ser ≈ 1
-print(f"  Σ D_j·Δθ = {np.sum(D_theta) * dtheta:.6f} (debe ser ≈1)")
+print(f"  Sum D_j*dtheta = {np.sum(D_theta) * dtheta:.6f} (must be ~1)")
 
 # Espectro 2D: E(ω,θ) = S(ω) · D(θ)
 # Amplitud por componente: A_ij = √(2 · E(ω_i,θ_j) · Δω · Δθ)
@@ -192,14 +198,45 @@ Hs_discrete = 4.0 * np.sqrt(m0_discrete)
 print(f"  Hs desde espectro discretizado: {Hs_discrete:.3f} m (esperado: {HS:.1f} m)")
 print(f"  m0_discrete = {m0_discrete:.4f} (esperado: {(HS/4)**2:.4f})")
 
+# ── DEBUG: gráfico del espectro direccional E(ω,θ) ──
+import matplotlib.pyplot as plt
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+
+# Panel izquierdo: spreading D(θ)
+ax1.plot(np.degrees(theta_centers), D_theta, "b-", linewidth=2)
+ax1.fill_between(np.degrees(theta_centers), 0, D_theta, alpha=0.2, color="b")
+ax1.set_xlabel("Dirección θ (°)")
+ax1.set_ylabel("D(θ) (rad⁻¹)")
+ax1.set_title(
+    f"Spreading  cos^{2*SPREADING_S}(pi/2 * t)  |  width={SPREAD_DEG} deg  |  Sum D*dtheta = {np.sum(D_theta)*dtheta:.3f}"
+)
+ax1.grid(True, linestyle=":", alpha=0.5)
+ax1.axvline(x=-45, color="gray", linestyle="--", alpha=0.5)
+ax1.axvline(x=45, color="gray", linestyle="--", alpha=0.5)
+
+# Panel derecho: espectro 2D E(ω,θ) en dB
+E_dB = 10 * np.log10(np.maximum(E_2d, 1e-10))
+im = ax2.pcolormesh(
+    freqs_gen, np.degrees(theta_centers), E_dB.T, shading="auto", cmap="viridis"
+)
+ax2.set_xlabel("Frecuencia f (Hz)")
+ax2.set_ylabel("Dirección θ (°)")
+ax2.set_title(f"Espectro direccional E(ω,θ) [dB]  (N_freqs={N_FREQS}, N_dirs={N_DIRS})")
+plt.colorbar(im, ax=ax2, label="dB")
+fig.tight_layout()
+ruta_debug = os.path.join(SCRIPT_DIR, "debug_directional_spectrum.png")
+fig.savefig(ruta_debug, dpi=150, bbox_inches="tight")
+plt.close(fig)
+print(f"  -> {ruta_debug}")
+# ────────────────────────────────────────────────────────────────
+
 # ============================================================
 # 6. NÚMERO DE ONDA (deep water: ω² = g·k)
 # ============================================================
 k_i = omega_gen**2 / G  # (N_freqs,)
-print(f"  Números de onda: k_min={k_i[0]:.4f}, k_max={k_i[-1]:.4f} rad/m")
-print(
-    f"  Longitudes de onda: λ_min={2*np.pi/k_i[-1]:.1f}, λ_max={2*np.pi/k_i[0]:.1f} m"
-)
+print(f"  Wavenumbers: k_min={k_i[0]:.4f}, k_max={k_i[-1]:.4f} rad/m")
+print(f"  Wavelengths: L_min={2*np.pi/k_i[-1]:.1f}, L_max={2*np.pi/k_i[0]:.1f} m")
 
 # ============================================================
 # 7. POSICIONES DE LOS 24 PUNTOS (grid 3×8 sobre 100m×100m)
@@ -272,7 +309,7 @@ print(f"  z min: {z_all.min():.3f} m")
 print(f"  z max: {z_all.max():.3f} m")
 print(f"  z std (promedio KPs): {np.mean(np.std(z_all, axis=0)):.3f} m")
 print(
-    f"  4·σ ≈ Hs: {4.0 * np.mean(np.std(z_all, axis=0)):.2f} m  (esperado: {HS:.1f} m)"
+    f"  4*sigma ~ Hs: {4.0 * np.mean(np.std(z_all, axis=0)):.2f} m  (expected: {HS:.1f} m)"
 )
 
 # ============================================================
@@ -285,7 +322,7 @@ for kp in range(24):
 
 ruta_csv = os.path.join(SCRIPT_DIR, "synthetic_z_metros.csv")
 df_out.to_csv(ruta_csv, index=False, sep=";")
-print(f"\n✅ CSV guardado: {ruta_csv}")
+print(f"\n>>> CSV saved: {ruta_csv}")
 print(f"   Dimensiones: {df_out.shape}")
 print(f"   Formato: frame; kp_00; kp_01; ...; kp_23")
 print(f"\nAhora ejecuta: python csv_fft_plot_prediction.py")

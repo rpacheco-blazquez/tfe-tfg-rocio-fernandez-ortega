@@ -34,10 +34,12 @@ python csv_fft_plot_synthetic.py    # solo sintético vs analítico
 
 | | 10 frec (sintético) | 499 frec (sintético) | z_metros.csv (original) |
 |---|---|---|---|
-| **Hs_FFT** | 6.17 m | 5.58 m | **5.97 m** |
-| **Hs_4σ** | 5.95 m | 5.57 m | **5.97 m** |
-| **Tp** | 10.91 s | 11.43 s | **8.42 s** |
-| **Tm01** | 8.78 s | 8.76 s | **7.13 s** |
+| **Hs_FFT** | 5.48 m | 5.52 m | **5.97 m** |
+| **Hs_4σ** | 5.42 m | 5.52 m | **5.97 m** |
+| **Tp** | 10.91 s | 10.21 s | **8.42 s** |
+| **Tm01** | 8.83 s | 8.66 s | **7.13 s** |
+
+> Nota: spreading con soporte compacto $\cos^6(\pi t/2)$, $\pm 45°$, $s=3$.
 
 1. **El método FFT funciona.** Con datos sintéticos (columnas 1 y 2),
    el espectro recuperado coincide con el JONSWAP de entrada.

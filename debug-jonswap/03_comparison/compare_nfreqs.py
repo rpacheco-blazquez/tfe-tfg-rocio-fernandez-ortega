@@ -30,7 +30,8 @@ HS_TARGET = 6.0
 TM_FORMULA = 9.0  # parametro Tm de la formula JONSWAP -> da Tm01~9s
 GAMMA = 3.3
 THETA0 = 0.0
-SPREADING_S = 2
+SPREAD_DEG = 90.0  # ancho total del spreading en grados (±SPREAD_DEG/2)
+SPREADING_S = 3  # exponente de cos²ˢ (soporte compacto)
 DT = 0.48
 N_FRAMES = 1000
 LX, LY = 100.0, 100.0
@@ -53,13 +54,15 @@ def jonswap_8_12(omega, Hs, Tm):
     return np.maximum(S, 0)
 
 
-def spreading_cos2s(theta, theta0, s):
+def spreading_cos2s(theta, theta0, s, spread_deg):
     dtheta = theta - theta0
     dtheta = np.arctan2(np.sin(dtheta), np.cos(dtheta))
-    D_raw = np.cos(dtheta / 2.0) ** (2 * s)
+    half_width = np.radians(spread_deg / 2.0)
+    t = dtheta / half_width
+    D_raw = np.where(np.abs(t) <= 1.0, np.cos(np.pi / 2.0 * t) ** (2 * s), 0.0)
     dtheta_step = theta[1] - theta[0]
     Z = np.sum(D_raw) * dtheta_step
-    return D_raw / Z
+    return D_raw / Z if Z > 0 else D_raw
 
 
 def generate_synthetic(n_freqs_target, seed=42):
@@ -101,7 +104,7 @@ def generate_synthetic(n_freqs_target, seed=42):
 
     # Espectro
     S_1d = jonswap_8_12(omega_gen, HS_TARGET, TM_FORMULA)
-    D_theta = spreading_cos2s(theta_centers, THETA0, SPREADING_S)
+    D_theta = spreading_cos2s(theta_centers, THETA0, SPREADING_S, SPREAD_DEG)
     E_2d = np.outer(S_1d, D_theta)
     A_ij = np.sqrt(2.0 * E_2d * dw_gen * dtheta)
 
@@ -156,7 +159,7 @@ print("GENERANDO SIMULACIONES SINTÉTICAS")
 print("=" * 60)
 print(f"Hs_target={HS_TARGET} m, TM_FORMULA={TM_FORMULA} -> Tm01~9s")
 print(
-    f"gamma={GAMMA}, heading={np.degrees(THETA0):.0f} deg, spreading=cos^{2*SPREADING_S}(theta/2)"
+    f"gamma={GAMMA}, heading={np.degrees(THETA0):.0f} deg, spreading=cos^{2*SPREADING_S}, width={SPREAD_DEG} deg"
 )
 print()
 

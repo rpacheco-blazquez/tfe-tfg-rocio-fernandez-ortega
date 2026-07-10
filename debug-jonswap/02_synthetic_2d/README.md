@@ -12,7 +12,7 @@ usando un espectro JONSWAP direccional, para validar que la dimensionalidad
 | $T_m$ (fórmula) | 9 s → $T_{m01} \approx 9$ s |
 | $\gamma$ | 3.3 |
 | Heading principal | 0° (olas hacia +x) |
-| Spreading | $\cos^4(\theta/2)$, ±45° |
+| Spreading | $\cos^6(\pi t/2)$, soporte compacto $\pm 45°$ ($s=3$, $\Delta\theta=90°$) |
 | Agua | profunda ($\omega^2 = gk$) |
 | Dominio espacial | 100 m × 100 m |
 |$\Delta x$ | 0.1m |
@@ -46,9 +46,8 @@ para cambiar entre 10 y 499 frecuencias.
 
 ## Lo que se observó
 
-- **Con 10 frecuencias**, la integral discreta **sobreestima** $H_s$ (6.61 m en vez de 6.0 m) porque los bins anchos ($\Delta f = 0.025$ Hz) no capturan bien el pico espectral
-- **Con 499 frecuencias**, la integral es casi exacta (6.00 m)
-- El $H_s$ realizado ($4\sigma$) es menor que el esperado debido a la duración finita (480 s) y las fases aleatorias
+- El spreading usa **soporte compacto**: $D(\theta) = \cos^{2s}(\frac{\pi}{2}t)$ para $|t|\leq 1$, $0$ fuera, con $t = (\theta-\theta_0)/(\Delta\theta/2)$. Así $D=0$ exactamente fuera de $\pm 45°$.
+- **Con 10 frecuencias**, la integral discreta **sobreestima** $H_s$ (6.61 m) por bins anchos ($\Delta f = 0.025$ Hz). El $H_s$ realizado ($4\sigma \approx 5.4$ m) es menor por la duración finita.
 - La dimensionalidad del spreading **no afecta** al espectro 1D: un punto
   fijo mide $\int E(\omega,\theta)d\theta = S(\omega)$.
 
