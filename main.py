@@ -18,6 +18,7 @@ import os
 import numpy as np
 
 import config
+import modules
 from modules import (
     energia_gt_alturanodos,
     energiapred,
@@ -42,13 +43,13 @@ isPredictionRequired       = False   # corre YOLO sobre train/val/test
 isVideoRequired             = False   # genera vídeos superpuesto + subplot
 isPixelToMetrosRequired    = False   # convierte labels predichos -> z_metros.csv
 isFFTPredRequired          = False   # FFT 1D + 3D de la PREDICCIÓN
-isFFTGTRequired            = False   # FFT 1D + 3D del GROUNDTRUTH
+isFFTGTRequired            = True   # FFT 1D + 3D del GROUNDTRUTH
 isBeamformingRequired      = False  # activar beamforming
 isBeamformingPred          = False  # aplicar sobre prediccion
 isBeamformingGT            = False # aplicar sobre GT (alturanodos.csv)
 isComparacionGTvsPredRequired = False  # genera la figura apilada GT vs Predicción
 isEnergiaGTRequired        = False   # gráficas E vs A y S(w) vs w del GT
-isEnergia_GT_alturanodos   = True # gráficas E vs A y S(w) vs w del GT (alturanodos.csv)
+isEnergia_GT_alturanodos   = False # gráficas E vs A y S(w) vs w del GT (alturanodos.csv)
 isComparacionGTSpecVsGTNodos = False #comparacion D.Polar de GT(spectrum) y GT (alturanodos)
 isenergiapred              = False # gráficas E vs A y S(w) vs w de la PREDICCIÓN
 
