@@ -12,7 +12,6 @@ Uso:
 
 import os
 import sys
-from datetime import datetime
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -144,10 +143,7 @@ def generate_synthetic(n_freqs_target, seed=42):
     for kp in range(24):
         df_out[f"kp_{kp:02d}"] = z_all[:, kp]
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    fname = os.path.join(
-        SCRIPT_DIR, f"synthetic_z_metros_{n_freqs}freq_{timestamp}.csv"
-    )
+    fname = os.path.join(SCRIPT_DIR, f"synthetic_z_metros_{n_freqs}freq.csv")
     df_out.to_csv(fname, index=False, sep=";")
 
     z_std = np.mean(np.std(z_all, axis=0))
@@ -259,10 +255,11 @@ res_10 = compute_fft(z_10, "10 frecuencias")
 res_499 = compute_fft(z_499, "499 frecuencias")
 
 # ============================================================
-# CARGAR Y ANALIZAR alturanodos.csv ORIGINAL
+# CARGAR Y ANALIZAR alturanodos_CFD_TFG.csv ORIGINAL
 # ============================================================
-print("\n[3/3] alturanodos.csv original...")
-CSV_ORIG = config.RUTA_GT_ALTURA_CSV
+print("\n[3/3] alturanodos_CFD_TFG.csv original...")
+CSV_ORIG_DIR = os.path.dirname(config.RUTA_GT_ALTURA_CSV)
+CSV_ORIG = os.path.join(CSV_ORIG_DIR, "alturanodos_CFD_TFG.csv")
 # El CSV viene con índice temporal y columnas de nodos, por ejemplo: 959, 960, 961, ...
 df_orig = pd.read_csv(CSV_ORIG, sep=",", header=0, index_col=0)
 
@@ -276,15 +273,15 @@ for node in config.LISTA_KEYPOINTS_ORDENADOS:
     elif str(node) in columnas:
         selected_nodes.append(str(node))
     else:
-        raise KeyError(f"No se encontró el nodo {node} en alturanodos.csv")
+        raise KeyError(f"No se encontró el nodo {node} en alturanodos_CFD_TFG.csv")
 
 z_orig = df_orig[selected_nodes].values.astype(float)
 print(f"  N_frames={z_orig.shape[0]}, N_kp={z_orig.shape[1]}")
 print(f"  Nodos usados: {selected_nodes}")
-res_orig = compute_fft(z_orig, "alturanodos.csv original")
+res_orig = compute_fft(z_orig, "alturanodos_CFD_TFG.csv original")
 
 # ============================================================
-# CARGAR z_metros.csv PARA COMPARAR CON alturanodos.csv
+# CARGAR z_metros.csv PARA COMPARAR CON alturanodos_CFD_TFG.csv
 # ============================================================
 CSV_ZMETROS = os.path.join(SCRIPT_DIR, "..", "z_metros.csv")
 df_zmetros = pd.read_csv(CSV_ZMETROS, sep=";", header=0, index_col=0)
@@ -313,7 +310,7 @@ fig.subplots_adjust(top=0.84, bottom=0.06, left=0.05, right=0.98, hspace=0.40, w
 datasets = [
     (res_10, "10 frecuencias\n(sintético)"),
     (res_499, "499 frecuencias\n(sintético)"),
-    (res_orig, "alturanodos.csv\n(GT)"),
+    (res_orig, "alturanodos_CFD_TFG.csv\n(GT)"),
 ]
 
 for col, (res, title) in enumerate(datasets):
@@ -355,35 +352,32 @@ for col, (res, title) in enumerate(datasets):
         S_mean,
         color="steelblue",
         linewidth=1.2,
-        label=f"FFT | Hs={Hs_p:.2f}m, Tp={Tp_p:.1f}s, Tm01={Tm01_p:.2f}s",
+        label=f"FFT numérico | Hs={Hs_p:.2f} Tp={Tp_p:.1f} Tm01={Tm01_p:.2f}",
     )
     ax.plot(
         omega_smooth,
         S_jonswap_target,
         color="black",
-        linewidth=2.0,
-        label=f"JONSWAP target (Hs={HS_TARGET}, Tm={TM_FORMULA})",
+        linewidth=2.5,
+        label=f"JONSWAP target (Hs={HS_TARGET}, TM_formula={TM_FORMULA})",
     )
     ax.plot(
         omega_smooth,
         S_jonswap_est,
         color="darkorange",
-        linewidth=1.8,
+        linewidth=2.0,
         linestyle="--",
-        label=f"JONSWAP est. (Hs={Hs_p:.2f}, Tm01={Tm01_p:.2f})",
+        label=f"JONSWAP estimado (Hs={Hs_p:.2f}, Tm01={Tm01_p:.2f})",
     )
-    if col == 2:
-        ax.plot(
-            omega_smooth,
-            S_jonswap_zmetros,
-            color="#b39ddb",
-            linewidth=1.6,
-            linestyle="-",
-            label=f"JONSWAP z_metros (Hs={res_zmetros['Hs_pred']:.2f}, Tm01={res_zmetros['Tm01_pred']:.2f})",
-        )
     ax.set_xlabel("ω (rad/s)")
     ax.set_ylabel("S(ω) (m²·s/rad)")
-    ax.legend(fontsize=6.2, loc="best", frameon=False)
+    ax.set_title(
+        f"{title}\n"
+        f"Hs_FFT={Hs_p:.2f}m  Hs_4sig={res['Hs_4sigma']:.2f}m  "
+        f"Tp={Tp_p:.1f}s  Tm01={Tm01_p:.2f}s  Tm02={Tm02_p:.2f}s",
+        fontsize=10,
+    )
+    ax.legend(fontsize=6.5)
     ax.grid(True, linestyle=":", alpha=0.5)
     ax.set_xlim(0, omega_pos.max())
     ax.axvline(x=2 * np.pi * f_pico, color="steelblue", linestyle=":", alpha=0.4)
@@ -403,15 +397,15 @@ for col, (res, title) in enumerate(datasets):
     )
     ax2.set_xlabel("ω (rad/s)")
     ax2.set_ylabel("A(ω) (m)")
-    ax2.legend(fontsize=6.0, loc="best", frameon=False)
+    ax2.set_title(f"Amplitudes FFT — {title}")
+    ax2.legend(fontsize=8)
     ax2.grid(True, linestyle=":", alpha=0.5)
     ax2.set_xlim(0, omega_pos.max())
 
     # ── Panel 3: Serie temporal ──
     ax3 = axes[2, col]
     z_prom = np.mean(z_centrada, axis=1)
-    n_frames_data = z_centrada.shape[0]
-    t_vec = np.arange(n_frames_data) * DT
+    t_vec = np.arange(z_centrada.shape[0]) * DT
     ax3.plot(
         t_vec,
         z_centrada[:, 0],
@@ -423,20 +417,9 @@ for col, (res, title) in enumerate(datasets):
     ax3.plot(t_vec, z_prom, color="crimson", linewidth=1.2, label="Promedio 24 KPs")
     ax3.set_xlabel("Tiempo (s)")
     ax3.set_ylabel("z(t) (m)")
-    ax3.legend(fontsize=6.0, loc="best", frameon=False)
+    ax3.set_title(f"Serie temporal  |  4·σ_prom={4*np.std(z_prom):.2f} m")
+    ax3.legend(fontsize=8)
     ax3.grid(True, linestyle=":", alpha=0.5)
-
-# ── Título superior de cada columna, fuera del área de las gráficas ──
-for col, (res, title) in enumerate(datasets):
-    header = (
-        f"{title}\n"
-        f"Hs={res['Hs_pred']:.2f}m, Hs4σ={res['Hs_4sigma']:.2f}m | "
-        f"Tp={res['Tp_pred']:.1f}s, Tm01={res['Tm01_pred']:.2f}s"
-    )
-    ax_top = axes[0, col]
-    x = (ax_top.get_position().x0 + ax_top.get_position().x1) / 2.0
-    y = 0.965
-    fig.text(x, y, header, ha="center", va="top", fontsize=8.0, fontweight="bold")
 
 # ── Línea de referencia analítica en los 3 paneles superiores ──
 for col in range(3):
@@ -450,8 +433,8 @@ for col in range(3):
     )
     axes[0, col].legend(fontsize=6)
 
-timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-ruta = os.path.join(SCRIPT_DIR, f"compare_nfreqs_{timestamp}.png")
+plt.tight_layout()
+ruta = os.path.join(SCRIPT_DIR, "compare_nfreqs.png")
 plt.savefig(ruta, dpi=200, bbox_inches="tight")
 print(f"\n✅ {ruta}")
 plt.show()
