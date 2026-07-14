@@ -1,13 +1,32 @@
 """
-compare_nfreqs.py
+compare_nfreqs.py (FIX: dt real por dataset + 4ª columna z_metros)
 Genera dos simulaciones sintéticas (10 y 499 frecuencias), calcula
-FFT en ambas y compara en 2 columnas:
+FFT en ambas y compara en 4 columnas:
   - FFT numérico (azul)
   - JONSWAP "target" (negro): Hs=6, TM_FORMULA=9 -> da Tm01~9s
   - JONSWAP "estimado" (naranja): Hs_pred, Tm01_pred derivados de la FFT
 
+FILTRO ESPECTRAL AUTOMÁTICO:
+  T_MIN y T_MAX ya NO se fijan a mano. Se calculan automáticamente a
+  partir del propio CSV del CFD (alturanodos_CFD_TFG.csv):
+    - T_MIN = 2 * dt_cfd      (periodo de Nyquist del muestreo real)
+    - T_MAX = N_cfd * dt_cfd  (duración total del registro CFD)
+  Estos mismos límites se aplican a TODOS los datasets (10 frec,
+  499 frec, CFD original y z_metros.csv) para que la comparación
+  sea homogénea.
+
+FIX IMPORTANTE:
+  compute_fft() ya NO asume dt=DT=0.48s para todos los datasets.
+  Ahora recibe el dt real de cada uno como parámetro (dt_data),
+  para que el eje de frecuencias (y por tanto la integral m0/Hs/Tm01/Tm02)
+  se calcule correctamente incluso si el dt real difiere de 0.48s.
+
+NUEVA 4ª COLUMNA:
+  Se añade una columna extra en el plot para z_metros.csv (la
+  predicción), calculada exactamente igual que las otras tres.
+
 Uso:
-  python compare_nfreqs.py
+  python compare_nfreqs_fixed.py
 """
 
 import os
@@ -151,40 +170,27 @@ def generate_synthetic(n_freqs_target, seed=42):
     return z_all, n_freqs
 
 
-# ============================================================
-# GENERAR AMBOS CSVs
-# ============================================================
-print("=" * 60)
-print("GENERANDO SIMULACIONES SINTÉTICAS")
-print("=" * 60)
-print(f"Hs_target={HS_TARGET} m, TM_FORMULA={TM_FORMULA} -> Tm01~9s")
-print(
-    f"gamma={GAMMA}, heading={np.degrees(THETA0):.0f} deg, spreading=cos^{2*SPREADING_S}, width={SPREAD_DEG} deg"
-)
-print()
+def compute_fft(z_data, label, t_min=None, t_max=None, dt_data=DT):
+    """
+    Calcula el espectro FFT promedio sobre los KPs y estima Hs, Tp,
+    Tm01, Tm02.
 
-print("[1/2] 10 frecuencias...")
-z_10, _ = generate_synthetic(10, seed=42)
-print()
-print("[2/2] 499 frecuencias...")
-z_499, _ = generate_synthetic(499, seed=42)
+    dt_data: paso temporal REAL del dataset que se está analizando.
+    Antes este valor estaba fijado internamente a DT=0.48s para
+    TODOS los datasets, lo cual desescalaba el eje de frecuencias
+    (y por tanto m0/Hs/Tm01/Tm02) para cualquier dataset cuyo dt
+    real fuese distinto de 0.48s (p.ej. el CFD). Ahora se recibe
+    como parámetro explícito.
 
-# ============================================================
-# FFT SOBRE AMBOS
-# ============================================================
-print("\n" + "=" * 60)
-print("ANÁLISIS FFT")
-print("=" * 60)
-
-N, dt = N_FRAMES, DT
-df_hz = 1.0 / (N * dt)
-dw = 2.0 * np.pi * df_hz
-
-
-def compute_fft(z_data, label):
+    Si se proporcionan t_min/t_max, se filtra la banda de frecuencias
+    usada para calcular los momentos espectrales (m0, m1, m2) y por
+    tanto Hs_pred, Tm01_pred, Tm02_pred:
+        f_min = 1 / t_max
+        f_max = min(1 / t_min, f_nyquist_del_dataset)
+    Si t_min/t_max son None, se usa todo el rango positivo (sin filtro).
+    """
     z_centrada = z_data - np.mean(z_data, axis=0, keepdims=True)
     N_data = z_data.shape[0]
-    dt_data = DT  # asumimos mismo dt=0.48s
     N_kp = z_data.shape[1]
     amps_all = []
     for kp in range(N_kp):
@@ -203,10 +209,21 @@ def compute_fft(z_data, label):
     S_std = np.std(S_all, axis=0)
     amps_mean = np.mean(amps_all, axis=0)
 
-    # ── SIN filtro: usar TODAS las frecuencias positivas (Nyquist) ──
-    idx_filt = np.arange(len(freqs_pos))  # todas
-    amps_filt_all_kps = amps_all[:, idx_filt]  # (N_kp, N_freqs_pos)
+    # ── Filtro por Tmin/Tmax (derivados del CFD), limitado por Nyquist propio ──
+    f_nyquist = freqs_pos.max()
+    f_min = 1.0 / t_max if t_max is not None else freqs_pos.min()
+    f_max = 1.0 / t_min if t_min is not None else f_nyquist
+    f_max = min(f_max, f_nyquist)  # nunca superar Nyquist del propio dataset
+
+    idx_filt = np.where((freqs_pos >= f_min) & (freqs_pos <= f_max))[0]
+    amps_filt_all_kps = amps_all[:, idx_filt]  # (N_kp, N_freqs_filt)
     freqs_filt = freqs_pos[idx_filt]
+
+    if t_min is not None and t_max is not None:
+        print(
+            f"  dt_data={dt_data:.4f}s | Filtro: T=[{t_min:.2f},{t_max:.2f}]s -> f=[{f_min:.4f},{f_max:.4f}]Hz "
+            f"({len(idx_filt)}/{len(freqs_pos)} componentes)"
+        )
 
     # ✅ CORRECTO: m0 por KP, luego promediar (NO promediar amplitudes antes)
     suma_A2_per_kp = np.sum(amps_filt_all_kps**2, axis=1)  # (N_kp,)
@@ -223,7 +240,7 @@ def compute_fft(z_data, label):
     Tm01_pred = m0 / m1 if m1 > 0 else 0
     Tm02_pred = np.sqrt(m0 / m2) if m2 > 0 else 0
 
-    # Para plots: amps_mean solo para visualización
+    # Para plots: amps_mean solo para visualización (SIN filtrar, banda completa)
     amps_mean = np.mean(amps_all, axis=0)
     idx_pico = np.argmax(amps_mean)
     Tp_pred = 1.0 / freqs_pos[idx_pico] if freqs_pos[idx_pico] > 0 else 0
@@ -248,16 +265,57 @@ def compute_fft(z_data, label):
         "freqs_pos": freqs_pos,
         "idx_pico": idx_pico,
         "Hs_4sigma": Hs_4sigma,
+        "dt_data": dt_data,
     }
 
 
-res_10 = compute_fft(z_10, "10 frecuencias")
-res_499 = compute_fft(z_499, "499 frecuencias")
+def get_dt_from_index(df, fallback_dt, label):
+    """
+    Intenta deducir el dt real a partir del índice del DataFrame,
+    asumiendo que el índice representa tiempo en segundos.
+    Si el índice parece ser un contador de frames (1,2,3...) en vez
+    de tiempo real, usa fallback_dt y avisa por consola.
+    """
+    idx_vals = df.index.values.astype(float)
+    diffs = np.diff(idx_vals)
+    dt_detected = np.mean(diffs)
+
+    # Heurística simple: si el índice sube de 1 en 1 (frame counter),
+    # no es tiempo real -> usar fallback_dt
+    if np.allclose(diffs, 1.0, atol=1e-6):
+        print(
+            f"  [{label}] índice parece ser contador de frames (paso=1.0), "
+            f"NO tiempo real. Se usa dt={fallback_dt}s por defecto."
+        )
+        return fallback_dt
+    else:
+        print(f"  [{label}] dt real detectado desde índice = {dt_detected:.4f}s")
+        return dt_detected
+
 
 # ============================================================
-# CARGAR Y ANALIZAR alturanodos_CFD_TFG.csv ORIGINAL
+# GENERAR AMBOS CSVs SINTÉTICOS
 # ============================================================
-print("\n[3/3] alturanodos_CFD_TFG.csv original...")
+print("=" * 60)
+print("GENERANDO SIMULACIONES SINTÉTICAS")
+print("=" * 60)
+print(f"Hs_target={HS_TARGET} m, TM_FORMULA={TM_FORMULA} -> Tm01~9s")
+print(
+    f"gamma={GAMMA}, heading={np.degrees(THETA0):.0f} deg, spreading=cos^{2*SPREADING_S}, width={SPREAD_DEG} deg"
+)
+print()
+
+print("[1/2] 10 frecuencias...")
+z_10, _ = generate_synthetic(10, seed=42)
+print()
+print("[2/2] 499 frecuencias...")
+z_499, _ = generate_synthetic(499, seed=42)
+
+# ============================================================
+# CARGAR alturanodos_CFD_TFG.csv ORIGINAL (necesario ANTES de las FFT
+# para deducir T_MIN / T_MAX a partir del dt y duración reales del CFD)
+# ============================================================
+print("\n[3/5] alturanodos_CFD_TFG.csv original...")
 CSV_ORIG_DIR = os.path.dirname(config.RUTA_GT_ALTURA_CSV)
 CSV_ORIG = os.path.join(CSV_ORIG_DIR, "alturanodos_CFD_TFG.csv")
 # El CSV viene con índice temporal y columnas de nodos, por ejemplo: 959, 960, 961, ...
@@ -278,18 +336,49 @@ for node in config.LISTA_KEYPOINTS_ORDENADOS:
 z_orig = df_orig[selected_nodes].values.astype(float)
 print(f"  N_frames={z_orig.shape[0]}, N_kp={z_orig.shape[1]}")
 print(f"  Nodos usados: {selected_nodes}")
-res_orig = compute_fft(z_orig, "alturanodos_CFD_TFG.csv original")
+
+# ── Deducir dt real del CFD a partir de su índice temporal ──
+t_index = df_orig.index.values.astype(float)
+dt_cfd = np.mean(np.diff(t_index))
+N_cfd = z_orig.shape[0]
+
+T_MIN = 2.0 * dt_cfd   # periodo de Nyquist del muestreo real del CFD
+T_MAX = N_cfd * dt_cfd  # duración total del registro CFD
+
+print(f"  dt_cfd={dt_cfd:.4f}s, N_cfd={N_cfd} -> T_MIN={T_MIN:.2f}s, T_MAX={T_MAX:.2f}s")
 
 # ============================================================
-# CARGAR z_metros.csv PARA COMPARAR CON alturanodos_CFD_TFG.csv
+# CARGAR z_metros.csv (PREDICCIÓN) ANTES DE LAS FFT
+# para deducir su dt real igual que se hizo con el CFD
 # ============================================================
+print("\n[4/5] z_metros.csv (predicción)...")
 CSV_ZMETROS = os.path.join(SCRIPT_DIR, "..", "z_metros.csv")
 df_zmetros = pd.read_csv(CSV_ZMETROS, sep=";", header=0, index_col=0)
 cols_zmetros = [f"kp_{kp:02d}" for kp in range(24)]
 z_zmetros = df_zmetros[cols_zmetros].values.astype(float)
-print("\n[3b/3] z_metros.csv para comparación...")
 print(f"  N_frames={z_zmetros.shape[0]}, N_kp={z_zmetros.shape[1]}")
-res_zmetros = compute_fft(z_zmetros, "z_metros.csv")
+
+# dt real de z_metros.csv: se intenta deducir del índice; si el índice
+# es un contador de frames (1,2,3...) se usa DT=0.48 como en los sintéticos.
+dt_zmetros = get_dt_from_index(df_zmetros, fallback_dt=DT, label="z_metros.csv")
+
+# ============================================================
+# FFT SOBRE TODOS LOS DATASETS, CON EL MISMO FILTRO T_MIN/T_MAX
+# CADA UNO CON SU dt REAL (FIX)
+# ============================================================
+print("\n" + "=" * 60)
+print("ANÁLISIS FFT (con filtro T_MIN/T_MAX derivado del CFD, dt real por dataset)")
+print("=" * 60)
+
+res_10 = compute_fft(z_10, "10 frecuencias", t_min=T_MIN, t_max=T_MAX, dt_data=DT)
+res_499 = compute_fft(z_499, "499 frecuencias", t_min=T_MIN, t_max=T_MAX, dt_data=DT)
+res_orig = compute_fft(
+    z_orig, "alturanodos_CFD_TFG.csv original", t_min=T_MIN, t_max=T_MAX, dt_data=dt_cfd
+)
+print("\n[5/5] FFT z_metros.csv (predicción)...")
+res_zmetros = compute_fft(
+    z_zmetros, "z_metros.csv (predicción)", t_min=T_MIN, t_max=T_MAX, dt_data=dt_zmetros
+)
 
 # ============================================================
 # CARGAR ESPECTRO ANALÍTICO DE REFERENCIA
@@ -302,15 +391,16 @@ omega_anal = df_anal["omega_rad_s"].values
 S_anal = df_anal["S_m2_s_rad"].values
 
 # ============================================================
-# PLOT 3 COLUMNAS: 10 frec | 499 frec | z_metros.csv original
+# PLOT 4 COLUMNAS: 10 frec | 499 frec | CFD original | z_metros (predicción)
 # ============================================================
-fig, axes = plt.subplots(3, 3, figsize=(24, 15))
-fig.subplots_adjust(top=0.84, bottom=0.06, left=0.05, right=0.98, hspace=0.40, wspace=0.24)
+fig, axes = plt.subplots(3, 4, figsize=(30, 15))
+fig.subplots_adjust(top=0.84, bottom=0.06, left=0.04, right=0.99, hspace=0.40, wspace=0.24)
 
 datasets = [
     (res_10, "10 frecuencias\n(sintético)"),
     (res_499, "499 frecuencias\n(sintético)"),
     (res_orig, "alturanodos_CFD_TFG.csv\n(GT)"),
+    (res_zmetros, "z_metros.csv\n(predicción)"),
 ]
 
 for col, (res, title) in enumerate(datasets):
@@ -325,6 +415,7 @@ for col, (res, title) in enumerate(datasets):
     amps_all = res["amps_all"]
     z_centrada = res["z_centrada"]
     freqs_pos = res["freqs_pos"]
+    dt_used = res["dt_data"]
     f_pico = freqs_pos[res["idx_pico"]]
 
     omega_smooth = np.linspace(0.01, omega_pos.max(), 600)
@@ -334,13 +425,6 @@ for col, (res, title) in enumerate(datasets):
 
     # ── JONSWAP "estimado" (Hs_pred, Tm01_pred) ──
     S_jonswap_est = jonswap_8_12(omega_smooth, Hs_p, Tm01_p)
-
-    if col == 2:
-        S_jonswap_zmetros = jonswap_8_12(
-            omega_smooth,
-            res_zmetros["Hs_pred"],
-            res_zmetros["Tm01_pred"],
-        )
 
     # ── Panel 1: S(ω) ──
     ax = axes[0, col]
@@ -369,10 +453,21 @@ for col, (res, title) in enumerate(datasets):
         linestyle="--",
         label=f"JONSWAP estimado (Hs={Hs_p:.2f}, Tm01={Tm01_p:.2f})",
     )
+    # ── Líneas verticales mostrando la banda de filtro T_MIN/T_MAX ──
+    f_min_plot = 1.0 / T_MAX
+    f_max_plot = min(1.0 / T_MIN, omega_pos.max() / (2 * np.pi))
+    ax.axvline(x=2 * np.pi * f_min_plot, color="green", linestyle=":", alpha=0.6)
+    ax.axvline(
+        x=2 * np.pi * f_max_plot,
+        color="green",
+        linestyle=":",
+        alpha=0.6,
+        label=f"Filtro T=[{T_MIN:.1f},{T_MAX:.1f}]s",
+    )
     ax.set_xlabel("ω (rad/s)")
     ax.set_ylabel("S(ω) (m²·s/rad)")
     ax.set_title(
-        f"{title}\n"
+        f"{title}  (dt={dt_used:.3f}s)\n"
         f"Hs_FFT={Hs_p:.2f}m  Hs_4sig={res['Hs_4sigma']:.2f}m  "
         f"Tp={Tp_p:.1f}s  Tm01={Tm01_p:.2f}s  Tm02={Tm02_p:.2f}s",
         fontsize=10,
@@ -405,7 +500,7 @@ for col, (res, title) in enumerate(datasets):
     # ── Panel 3: Serie temporal ──
     ax3 = axes[2, col]
     z_prom = np.mean(z_centrada, axis=1)
-    t_vec = np.arange(z_centrada.shape[0]) * DT
+    t_vec = np.arange(z_centrada.shape[0]) * dt_used
     ax3.plot(
         t_vec,
         z_centrada[:, 0],
@@ -421,8 +516,8 @@ for col, (res, title) in enumerate(datasets):
     ax3.legend(fontsize=8)
     ax3.grid(True, linestyle=":", alpha=0.5)
 
-# ── Línea de referencia analítica en los 3 paneles superiores ──
-for col in range(3):
+# ── Línea de referencia analítica en los 4 paneles superiores ──
+for col in range(4):
     axes[0, col].plot(
         omega_anal,
         S_anal,
