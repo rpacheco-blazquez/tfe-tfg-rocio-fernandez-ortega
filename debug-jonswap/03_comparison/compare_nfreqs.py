@@ -352,7 +352,7 @@ print(f"  dt_cfd={dt_cfd:.4f}s, N_cfd={N_cfd} -> T_MIN={T_MIN:.2f}s, T_MAX={T_MA
 # para deducir su dt real igual que se hizo con el CFD
 # ============================================================
 print("\n[4/5] z_metros.csv (predicción)...")
-CSV_ZMETROS = os.path.join(SCRIPT_DIR, "..", "z_metros.csv")
+CSV_ZMETROS = r"C:\ensayo correcto TFG\datasetcorrecto1000frames\dataset_CFD_mejorado\elevacion_CFD_metros.csv"
 df_zmetros = pd.read_csv(CSV_ZMETROS, sep=";", header=0, index_col=0)
 cols_zmetros = [f"kp_{kp:02d}" for kp in range(24)]
 z_zmetros = df_zmetros[cols_zmetros].values.astype(float)

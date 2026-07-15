@@ -39,11 +39,11 @@ from modules import (
 RUN_SAFE_MODE = True
 
 isTrainingRequired         = False   # entrena el modelo desde cero (tarda horas)
-isPredictionRequired       = False   # corre YOLO sobre train/val/test
+isPredictionRequired       = True   # corre YOLO sobre train/val/test
 isVideoRequired             = False   # genera vídeos superpuesto + subplot
-isPixelToMetrosRequired    = False   # convierte labels predichos -> z_metros.csv
-isFFTPredRequired          = False   # FFT 1D + 3D de la PREDICCIÓN
-isFFTGTRequired            = True   # FFT 1D + 3D del GROUNDTRUTH
+isPixelToMetrosRequired    = True   # convierte labels predichos -> z_metros.csv
+isFFTPredRequired          = False  # FFT 1D + 3D de la PREDICCIÓN
+isFFTGTRequired            = False   # FFT 1D + 3D del GROUNDTRUTH
 isBeamformingRequired      = False  # activar beamforming
 isBeamformingPred          = False  # aplicar sobre prediccion
 isBeamformingGT            = False # aplicar sobre GT (alturanodos.csv)

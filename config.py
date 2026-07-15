@@ -42,13 +42,18 @@ CARPETAS_IMAGENES_DIVIDIDAS = {
     "test":  os.path.join(RUTA_DATASET, "test",  "images"),
 }
 
-CARPETAS_LABELS_GT_DIVIDIDAS = {
-    "train": os.path.join(RUTA_DATASET, "train", "labels"),
-    "val":   os.path.join(RUTA_DATASET, "val",   "labels"),
-    "test":  os.path.join(RUTA_DATASET, "test",  "labels"),
-}
 
 RUTA_DATASET_YAML = os.path.join(RUTA_DATASET, "dataset.yaml")
+
+RUTA_DATASET_NUEVO = r"C:\ensayo correcto TFG\datasetcorrecto1000frames\dataset_CFD_mejorado"
+
+CARPETAS_LABELS_CFD_DIVIDIDAS = [
+    os.path.join(RUTA_DATASET_NUEVO, "train", "labels"),
+    os.path.join(RUTA_DATASET_NUEVO, "val",   "labels"),
+    os.path.join(RUTA_DATASET_NUEVO, "test",  "labels"),
+]
+
+RUTA_Z_METROS_PRED = os.path.join(RUTA_DATASET_NUEVO, "elevacion_CFD_metros.csv")
 
 # ─────────────────────────────────────────────────────────────────
 # PARÁMETROS DE IMAGEN / DATASET
