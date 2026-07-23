@@ -1,0 +1,206 @@
+# Los nodos en blender tienen un numero menos que en SEAFEM. Ejemplo: en Blender el nodo 25606 es el 25607 en SEAFEM. Siempre que se trabaje fuera de Blender se tiene que trabajar con el 25607.
+import bpy
+import csv
+from mathutils import Vector
+
+# =============================================================================
+# CONFIGURACIÓN
+# =============================================================================
+NODES_FILE = r"C:/Users/rocio/Repositorio TFG Visual Code/tfe-tfg-rocio-fernandez-ortega/Carpeta Rocio/SCRIPT/coordenadasnodes.csv"
+ELEMENTS_FILE = r"C:/Users/rocio/Repositorio TFG Visual Code/tfe-tfg-rocio-fernandez-ortega/Carpeta Rocio/SCRIPT/elementsseafem.csv"
+ELEVATION_FILE = r"C:/Users/rocio/Repositorio TFG Visual Code/tfe-tfg-rocio-fernandez-ortega/Carpeta Rocio/SCRIPT/alturanodos_CFD_TFG.csv"
+
+Z_SCALE = 1.0
+Z_OFFSET = 0.0
+SMOOTH_SHADING = True
+
+# =============================================================================
+# LIMPIEZA — solo borra el Oleaje, conserva todo lo demás
+# =============================================================================
+print("Limpiando escena...")
+for obj in list(bpy.data.objects):
+    if obj.type == 'MESH' and obj.name == "Oleaje":
+        bpy.data.objects.remove(obj, do_unlink=True)
+
+# =============================================================================
+# LECTURA DE DATOS
+# =============================================================================
+print("Leyendo nodos...")
+nodes_data = {}
+with open(NODES_FILE, 'r', encoding='utf-8') as f:
+    reader = csv.DictReader(f)
+    for row in reader:
+        node_id = int(row['node_id'])
+        x = float(row['x'])
+        y = float(row['y'])
+        z = float(row['z'])
+        nodes_data[node_id] = (x, y, z)
+print(f"  ✓ {len(nodes_data)} nodos cargados")
+
+print("Leyendo elementos...")
+elements = []
+with open(ELEMENTS_FILE, 'r', encoding='utf-8') as f:
+    reader = csv.DictReader(f)
+    for row in reader:
+        n1 = int(row['node_1'])
+        n2 = int(row['node_2'])
+        n3 = int(row['node_3'])
+        elements.append((n1, n2, n3))
+print(f"  ✓ {len(elements)} elementos cargados")
+
+print("Leyendo elevaciones...")
+timesteps = []
+elevation_data = []
+
+with open(ELEVATION_FILE, 'r', encoding='utf-8') as f:
+    reader = csv.reader(f)
+    header = next(reader)
+    node_ids_in_order = [int(nid) for nid in header[1:]]
+    for row in reader:
+        time = float(row[0])
+        timesteps.append(time)
+        elevations = {}
+        for i, node_id in enumerate(node_ids_in_order):
+            elevation_str = row[i + 1]
+            elevations[node_id] = float(elevation_str) if elevation_str else 0.0
+        elevation_data.append(elevations)
+
+print(f"  ✓ {len(elevation_data)} timesteps cargados")
+print(f"  ✓ Tiempo de {timesteps[0]:.2f}s a {timesteps[-1]:.2f}s")
+
+# =============================================================================
+# PREPARAR DATOS
+# =============================================================================
+all_node_ids = sorted(nodes_data.keys())
+node_id_to_index = {nid: i for i, nid in enumerate(all_node_ids)}
+
+vertices = []
+first_elevations = elevation_data[0]
+for node_id in all_node_ids:
+    x, y, base_z = nodes_data[node_id]
+    elevation = first_elevations.get(node_id, 0.0)
+    z = base_z + (elevation * Z_SCALE) + Z_OFFSET
+    vertices.append((x, y, z))
+
+faces = []
+for (n1, n2, n3) in elements:
+    if n1 in node_id_to_index and n2 in node_id_to_index and n3 in node_id_to_index:
+        faces.append((node_id_to_index[n1], node_id_to_index[n2], node_id_to_index[n3]))
+
+# =============================================================================
+# CREAR MALLA
+# =============================================================================
+print("Creando malla en Blender...")
+
+mesh = bpy.data.meshes.new("OleajeMesh")
+mesh.from_pydata(vertices, [], faces)
+mesh.update()
+
+# ==========================================================
+# GUARDAR EL NODE_ID ORIGINAL DE SEAFEM EN CADA VÉRTICE
+# ==========================================================
+attr = mesh.attributes.new(
+    name="node_id",
+    type='INT',
+    domain='POINT'
+)
+
+for i, node_id in enumerate(all_node_ids):
+    attr.data[i].value = node_id
+
+print("  ✓ NodeID de SeaFEM almacenado en todos los vértices")
+
+obj = bpy.data.objects.new("Oleaje", mesh)
+
+# Añadir a la escena sin colección
+bpy.context.scene.collection.objects.link(obj)
+bpy.context.view_layer.objects.active = obj
+obj.select_set(True)
+
+# Asignar material agua
+material = bpy.data.materials.get("agua")
+if material:
+    obj.data.materials.append(material)
+    print("  ✓ Material 'agua' asignado")
+else:
+    print("  ⚠ Material 'agua' no encontrado")
+
+if SMOOTH_SHADING:
+    bpy.ops.object.shade_smooth()
+
+print(f"  ✓ Malla creada: {len(vertices)} vértices, {len(faces)} caras")
+
+# =============================================================================
+# CREAR SHAPE KEYS
+# =============================================================================
+print("Creando shape keys...")
+
+if not obj.data.shape_keys:
+    obj.shape_key_add(name="Basis")
+
+for i, elevations in enumerate(elevation_data):
+    if i == 0:
+        continue
+    key = obj.shape_key_add(name=f"Time_{timesteps[i]:.2f}s")
+    for node_id in all_node_ids:
+        idx = node_id_to_index[node_id]
+        x, y, base_z = nodes_data[node_id]
+        elevation = elevations.get(node_id, 0.0)
+        z = base_z + (elevation * Z_SCALE) + Z_OFFSET
+        key.data[idx].co = Vector((x, y, z))
+
+print(f"  ✓ {len(obj.data.shape_keys.key_blocks)} shape keys creadas")
+
+# =============================================================================
+# CONFIGURAR ANIMACIÓN
+# =============================================================================
+print("Configurando animación...")
+scene = bpy.context.scene
+
+if obj.data.shape_keys and obj.data.shape_keys.animation_data:
+    obj.data.shape_keys.animation_data_clear()
+
+if len(timesteps) > 1:
+    time_intervals = [timesteps[i+1] - timesteps[i] for i in range(len(timesteps)-1)]
+    avg_interval = sum(time_intervals) / len(time_intervals)
+    fps = max(1, int(1.0 / avg_interval))
+    scene.render.fps = fps
+    scene.render.fps_base = 1.0
+    print(f"  ✓ FPS configurado a {fps}")
+else:
+    scene.render.fps = 30
+
+N = len(elevation_data)
+frame_numbers = [1 + i for i in range(N)]
+
+for j, kb in enumerate(obj.data.shape_keys.key_blocks):
+    if kb.name == "Basis":
+        continue
+    kb.value = 1.0 if j == 1 else 0.0
+    kb.keyframe_insert(data_path="value", frame=frame_numbers[0])
+
+for i, frame in enumerate(frame_numbers):
+    for j, kb in enumerate(obj.data.shape_keys.key_blocks):
+        if kb.name == "Basis":
+            continue
+        kb.value = 1.0 if (j - 1) == i else 0.0
+        kb.keyframe_insert(data_path="value", frame=frame)
+
+scene.frame_start = frame_numbers[0]
+scene.frame_end = frame_numbers[-1]
+
+print(f"  ✓ Animación configurada: frames {scene.frame_start}-{scene.frame_end}")
+
+# =============================================================================
+# RESUMEN
+# =============================================================================
+print("\n" + "="*60)
+print("✅ IMPORTACIÓN COMPLETADA")
+print("="*60)
+print(f"Vértices: {len(vertices)}")
+print(f"Caras: {len(faces)}")
+print(f"Timesteps: {N}")
+print(f"Duración: {timesteps[0]:.2f}s - {timesteps[-1]:.2f}s")
+print(f"Frames: {scene.frame_start} - {scene.frame_end}")
+print(f"FPS: {scene.render.fps}")
+print("="*60)
