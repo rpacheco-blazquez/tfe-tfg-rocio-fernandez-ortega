@@ -87,7 +87,7 @@ def _recopilar_frames_en_orden():
     todas_las_frames = []
     for split in ["train", "val", "test"]:
         ruta_imgs = config.CARPETAS_IMAGENES_DIVIDIDAS[split]
-        ruta_gt   = config.CARPETAS_LABELS_GT_DIVIDIDAS[split]
+        ruta_gt   = config.CARPETAS_LABELS_CFD_DIVIDIDAS[split]
         ruta_pred = os.path.join(config.RUTA_BASE_RUNS, f"pred_{split}", "labels")
 
         archivos = [f for f in os.listdir(ruta_gt) if f.endswith(".txt")]

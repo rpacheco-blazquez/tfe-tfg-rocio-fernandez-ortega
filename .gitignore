@@ -7,3 +7,5 @@ __pycache__/
 outputs/
 *.ipynb_checkpoints/
 .DS_Store
+*.blend 
+*.zip

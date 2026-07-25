@@ -51,17 +51,18 @@ def convertir_pixeles_a_metros():
     z_v_test = num_v_test / den_v_test
     print(f"\n  Verificación KP00: z_v={z_v_test:.4f}m (real=0.2231m)")
 
-    # Cargar labels predichos
+    # Cargar labels predichos (generados por predecir_con_modelo() en prediccion_videos.py)
     print("\nCargando labels de predicción...")
     todos_los_txt = []
-    for carpeta in config.CARPETAS_LABELS_DIVIDIDAS:
+    for split in ["train", "val", "test"]:
+        carpeta = os.path.join(config.RUTA_BASE_RUNS, f"pred_{split}", "labels")
         if os.path.exists(carpeta):
             for archivo in os.listdir(carpeta):
                 if archivo.endswith('.txt'):
                     todos_los_txt.append(os.path.join(carpeta, archivo))
         else:
             print(f"  ⚠️  No encontrada: {carpeta}")
-
+            
     def _extraer_numero(ruta):
         digitos = ''.join(filter(str.isdigit, os.path.basename(ruta)))
         return int(digitos) if digitos else 0

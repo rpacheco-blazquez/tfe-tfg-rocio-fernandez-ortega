@@ -38,10 +38,10 @@ from modules import (
 # imágenes ni graficas automáticamente.
 RUN_SAFE_MODE = True
 
-isTrainingRequired         = True   # entrena el modelo desde cero (tarda horas)
+isTrainingRequired         = False   # entrena el modelo desde cero (tarda horas)
 isPredictionRequired       = False   # corre YOLO sobre train/val/test
 isVideoRequired             = False   # genera vídeos superpuesto + subplot
-isPixelToMetrosRequired    = False   # convierte labels predichos -> z_metros.csv
+isPixelToMetrosRequired    = True   # convierte labels predichos -> z_metros.csv
 isFFTPredRequired          = False  # FFT 1D + 3D de la PREDICCIÓN
 isFFTGTRequired            = False   # FFT 1D + 3D del GROUNDTRUTH
 isBeamformingRequired      = False  # activar beamforming
