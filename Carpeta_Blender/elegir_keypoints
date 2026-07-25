@@ -1,0 +1,265 @@
+# el script sirve para darle a un nodo cualquiera de la malla y que te salga las coordenadas que tiene, su numero de identificación y un botón para añadirlo a la lista. De momento no hace falta porque ya tenemos los keypoints elegidos.
+import bpy
+import bmesh
+from bpy_extras.object_utils import world_to_camera_view
+ 
+# ---------------------------------------------
+# Función para obtener los datos del vértice
+# ---------------------------------------------
+def get_active_vertex_data(context, obj):
+    if obj is None or obj.type != "MESH":
+        return None
+    if obj.mode != "EDIT":
+        return None
+ 
+    # Forzar reconstrucción del bmesh desde cero
+    obj.update_from_editmode()
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    bm.verts.ensure_lookup_table()
+ 
+    selected = [v for v in bm.verts if v.select]
+    if not selected:
+        bm.free()
+        return None
+ 
+    v = selected[0]
+    vert_index = v.index
+
+# Leer el node_id original de SeaFEM
+    node_id = None
+
+    if "node_id" in obj.data.attributes:
+    node_id = obj.data.attributes["node_id"].data[vert_index].value
+
+    world_co = obj.matrix_world @ v.co.copy()
+    bm.free()
+ 
+    scene = context.scene
+    cam = scene.camera
+    render = scene.render
+    width  = render.resolution_x * render.resolution_percentage / 100
+    height = render.resolution_y * render.resolution_percentage / 100
+ 
+    co_ndc = world_to_camera_view(scene, cam, world_co)
+    px   = co_ndc.x * width
+    py   = (1 - co_ndc.y) * height
+    perx = co_ndc.x * 100
+    pery = co_ndc.y * 100
+ 
+    return {
+        "index": vert_index,
+        "node_id": node_id,
+        "x": round(world_co.x, 4),
+        "y": round(world_co.y, 4),
+        "z": round(world_co.z, 4),
+        "px": px,
+        "py": py,
+        "perx": perx,
+        "pery": pery
+    }
+ 
+# ---------------------------------------------
+# Propiedades
+# ---------------------------------------------
+class VertexPixelProperties(bpy.types.PropertyGroup):
+    obj: bpy.props.PointerProperty(
+        name="Object",
+        type=bpy.types.Object
+    )
+    keypoint_list: bpy.props.StringProperty(
+        name="Keypoint List",
+        default=""
+    )
+ 
+# ---------------------------------------------
+# Botón "Go Edit Vertex"
+# ---------------------------------------------
+class VIEW3D_OT_vertex_pixel_go_edit(bpy.types.Operator):
+    bl_idname = "view3d.vertex_pixel_go_edit"
+    bl_label = "Go Edit Vertex"
+ 
+    def execute(self, context):
+        obj = context.scene.vertex_pixel_props.obj
+        if not obj or obj.type != "MESH":
+            self.report({'ERROR'}, "Select a mesh object")
+            return {'CANCELLED'}
+ 
+        bpy.context.view_layer.objects.active = obj
+        obj.select_set(True)
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.context.tool_settings.mesh_select_mode = (True, False, False)
+        return {'FINISHED'}
+ 
+# ---------------------------------------------
+# Botón "Leer vértice" — lee en el momento exacto
+# ---------------------------------------------
+class VIEW3D_OT_read_vertex(bpy.types.Operator):
+    bl_idname = "view3d.read_vertex"
+    bl_label = "Leer vértice"
+ 
+    def execute(self, context):
+        props = context.scene.vertex_pixel_props
+        obj = props.obj
+        data = get_active_vertex_data(context, obj)
+ 
+        if data is None:
+            self.report({'WARNING'}, "Selecciona un vértice en Edit Mode primero")
+            return {'CANCELLED'}
+ 
+        context.scene["vertex_pixel_data"] = data
+        self.report({'INFO'}, f"Vértice {data['index']} leído correctamente")
+        return {'FINISHED'}
+ 
+# ---------------------------------------------
+# Botón "Añadir a lista"
+# ---------------------------------------------
+class VIEW3D_OT_add_to_keypoint_list(bpy.types.Operator):
+    bl_idname = "view3d.add_to_keypoint_list"
+    bl_label = "Añadir a lista"
+ 
+    def execute(self, context):
+        props = context.scene.vertex_pixel_props
+        data = context.scene.get("vertex_pixel_data")
+ 
+        if not data:
+            self.report({'WARNING'}, "Lee un vértice primero")
+            return {'CANCELLED'}
+ 
+        idx = str(data['node_id'])
+        current = props.keypoint_list
+        indices = [i for i in current.split(",") if i.strip()] if current else []
+ 
+        if idx in indices:
+            self.report({'WARNING'}, f"El vértice {idx} ya está en la lista")
+            return {'CANCELLED'}
+ 
+        indices.append(idx)
+        props.keypoint_list = ",".join(indices)
+        self.report({'INFO'}, f"Vértice {idx} añadido ({len(indices)} en total)")
+        return {'FINISHED'}
+ 
+# ---------------------------------------------
+# Botón "Limpiar lista"
+# ---------------------------------------------
+class VIEW3D_OT_clear_keypoint_list(bpy.types.Operator):
+    bl_idname = "view3d.clear_keypoint_list"
+    bl_label = "Limpiar lista"
+ 
+    def execute(self, context):
+        context.scene.vertex_pixel_props.keypoint_list = ""
+        self.report({'INFO'}, "Lista limpiada")
+        return {'FINISHED'}
+ 
+# ---------------------------------------------
+# Botón "Copiar lista para el script"
+# ---------------------------------------------
+class VIEW3D_OT_copy_keypoint_list(bpy.types.Operator):
+    bl_idname = "view3d.copy_keypoint_list"
+    bl_label = "Copiar lista"
+ 
+    def execute(self, context):
+        props = context.scene.vertex_pixel_props
+        indices = [i.strip() for i in props.keypoint_list.split(",") if i.strip()]
+ 
+        if not indices:
+            self.report({'WARNING'}, "La lista está vacía")
+            return {'CANCELLED'}
+ 
+        formatted = "INDICES_VERTICES = [\n    " + ", ".join(indices) + "\n]"
+        context.window_manager.clipboard = formatted
+        self.report({'INFO'}, f"Lista copiada ({len(indices)} vértices)")
+        return {'FINISHED'}
+ 
+# ---------------------------------------------
+# Panel de UI
+# ---------------------------------------------
+class VIEW3D_PT_vertex_pixel_panel(bpy.types.Panel):
+    bl_label = "Vertex Pixel Inspector"
+    bl_idname = "VIEW3D_PT_vertex_pixel_panel"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = "VertexPixel"
+ 
+    def draw(self, context):
+        layout = self.layout
+        props = context.scene.vertex_pixel_props
+ 
+        layout.prop(props, "obj")
+        layout.operator("view3d.vertex_pixel_go_edit")
+        layout.separator()
+ 
+        # Botón principal — leer en el momento exacto
+        layout.operator("view3d.read_vertex", icon='CURSOR')
+        layout.separator()
+ 
+        data = context.scene.get("vertex_pixel_data")
+        if not data:
+            layout.label(text="Selecciona un vértice y pulsa Leer")
+            return
+ 
+        layout.label(text=f"Vertex index: {data['index']}")
+        layout.label(text=f"SeaFEM node: {data['node_id']}")
+        layout.separator()
+        layout.label(text="3D Coordinates")
+        layout.label(text=f"X: {data['x']:.4f}")
+        layout.label(text=f"Y: {data['y']:.4f}")
+        layout.label(text=f"Z: {data['z']:.4f}")
+        layout.separator()
+        layout.label(text="Render Pixels")
+        layout.label(text=f"U: {data['px']:.1f}")
+        layout.label(text=f"V: {data['py']:.1f}")
+        layout.separator()
+        layout.label(text="Canvas Percent")
+        layout.label(text=f"U: {data['perx']:.2f}%")
+        layout.label(text=f"V: {data['pery']:.2f}%")
+        layout.separator()
+ 
+        # Añadir a lista de keypoints
+        layout.operator("view3d.add_to_keypoint_list", icon='ADD')
+        layout.separator()
+ 
+        # Mostrar lista acumulada
+        indices = [i.strip() for i in props.keypoint_list.split(",") if i.strip()]
+        if indices:
+            layout.label(text=f"Keypoints guardados: {len(indices)}")
+            for i, idx in enumerate(indices):
+                layout.label(text=f"  kp_{i:02d}  vertice {idx}")
+            layout.separator()
+            row = layout.row()
+            row.operator("view3d.copy_keypoint_list", icon='COPYDOWN')
+            row.operator("view3d.clear_keypoint_list", icon='TRASH')
+        else:
+            layout.label(text="Lista vacia — añade vertices")
+ 
+# ---------------------------------------------
+# Registro
+# ---------------------------------------------
+classes = [
+    VertexPixelProperties,
+    VIEW3D_OT_vertex_pixel_go_edit,
+    VIEW3D_OT_read_vertex,
+    VIEW3D_OT_add_to_keypoint_list,
+    VIEW3D_OT_clear_keypoint_list,
+    VIEW3D_OT_copy_keypoint_list,
+    VIEW3D_PT_vertex_pixel_panel,
+]
+ 
+def register():
+    for c in classes:
+        bpy.utils.register_class(c)
+    bpy.types.Scene.vertex_pixel_props = bpy.props.PointerProperty(type=VertexPixelProperties)
+ 
+def unregister():
+    for c in reversed(classes):
+        bpy.utils.unregister_class(c)
+    if hasattr(bpy.types.Scene, "vertex_pixel_props"):
+        del bpy.types.Scene.vertex_pixel_props
+ 
+if __name__ == "__main__":
+    try:
+        unregister()
+    except:
+        pass
+    register()
+ 

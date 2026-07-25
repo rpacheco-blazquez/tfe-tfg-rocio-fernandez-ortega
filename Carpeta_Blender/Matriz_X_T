@@ -1,0 +1,105 @@
+import bpy
+import csv
+from bpy_extras.object_utils import world_to_camera_view
+
+# ─────────────────────────────────────────────────────────────────
+# NODOS
+# ─────────────────────────────────────────────────────────────────
+nodos = [
+    25606, 25745, 25128, 24439, 23685, 22991, 22718, 21627,
+    27968, 26985, 26283, 25778, 25104, 24167, 23454, 22962,
+    28073, 27485, 26834, 26321, 25670, 25201, 24944, 24035
+]
+
+# ─────────────────────────────────────────────────────────────────
+# CONEXIONES
+# ─────────────────────────────────────────────────────────────────
+conexiones = [
+    # Foto 1 (nueva)
+    [25606, 27968, 26985],
+    [25606, 26985, 25745],
+    [25745, 26985, 26283],
+    [25745, 26283, 25128],
+    [25128, 26283, 25778],
+    [25128, 25778, 24439],
+    [24439, 25778, 25104],
+    [24439, 25104, 23685],
+    [25104, 23685, 24167],
+    [23685, 24167, 22991],
+    [22991, 24167, 23454],
+    [22991, 23454, 22718],
+
+    # Foto 2
+    [22718, 23454, 22962],
+    [22718, 22962, 21627],
+    [27968, 26985, 28073],
+    [28073, 26985, 27485],
+    [26985, 26283, 27485],
+    [27485, 26283, 26834],
+    [26283, 26834, 25778],
+    [25778, 26834, 26321],
+    [25778, 26321, 25104],
+    [25104, 26321, 25670],
+    [25104, 24167, 25670],
+    [24167, 25670, 25201],
+    [24167, 25201, 23454],
+    [25201, 23454, 24944],
+    [23454, 24944, 22962],
+    [24944, 22962, 24035],
+]
+
+# ─────────────────────────────────────────────────────────────────
+# RUTA DE SALIDA
+# ─────────────────────────────────────────────────────────────────
+ruta_salida = r"C:/ensayo correcto TFG/datasetcorrecto1000frames/CSV MATRIZ X y T"+"\\"
+
+# =================================================================
+# NO TOQUES NADA A PARTIR DE AQUÍ
+# =================================================================
+
+scene = bpy.context.scene
+cam = scene.camera
+obj = bpy.context.active_object
+mesh = obj.data
+
+res_x = scene.render.resolution_x
+res_y = scene.render.resolution_y
+
+X_data = []
+UV_data = []
+
+for i in nodos:
+    v = mesh.vertices[i]
+    co_world = obj.matrix_world @ v.co
+    co_cam = world_to_camera_view(scene, cam, co_world)
+
+    u = co_cam.x * res_x
+    v_px = (1 - co_cam.y) * res_y
+
+    X_data.append([i, round(v.co.x, 6), round(v.co.y, 6), round(v.co.z, 6)])
+    UV_data.append([i, round(u, 2), round(v_px, 2)])
+
+    print(f"Nodo {i}: ({v.co.x:.3f},{v.co.y:.3f},{v.co.z:.3f}) → píxeles=({u:.1f},{v_px:.1f})")
+
+# Guardar X.csv
+with open(ruta_salida + "X.csv", "w", newline="") as f:
+    writer = csv.writer(f)
+    writer.writerow(["nodo", "x", "y", "z"])
+    writer.writerows(X_data)
+
+# Guardar UV.csv
+with open(ruta_salida + "UV.csv", "w", newline="") as f:
+    writer = csv.writer(f)
+    writer.writerow(["nodo", "u", "v"])
+    writer.writerows(UV_data)
+
+# Guardar T.csv
+with open(ruta_salida + "T.csv", "w", newline="") as f:
+    writer = csv.writer(f)
+    writer.writerow(["triangulo", "nodo1", "nodo2", "nodo3"])
+    for idx, (n1, n2, n3) in enumerate(conexiones):
+        writer.writerow([idx, n1, n2, n3])
+
+print(f"\n✅ Guardados X.csv, UV.csv y T.csv en {ruta_salida}")
+print(f"   Nodos: {len(X_data)}")
+print(f"   Triángulos: {len(conexiones)}")

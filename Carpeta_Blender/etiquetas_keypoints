@@ -1,0 +1,80 @@
+# con este script puedes ver en la malla de blender qué keypoints has escogido señalizados por una luz naranja y con su etiqueta al lado para reconocer cuál es.
+import bpy
+import gpu
+import blf
+from gpu_extras.batch import batch_for_shader
+
+INDICES = [25606, 25745, 25128, 24439, 23685, 22991, 22718, 21627, 
+           27968, 26985, 26283, 25778, 25104, 24167, 23454, 22962, 
+           28073, 27485, 26834, 26321, 25670, 25201, 24944, 24035]
+
+# --- Selección de vértices (igual que antes) ---
+obj = bpy.data.objects.get("Oleaje")
+if not obj:
+    raise RuntimeError("No se encontró el objeto 'Oleaje'")
+
+bpy.context.view_layer.objects.active = obj
+bpy.ops.object.mode_set(mode='EDIT')
+bpy.ops.mesh.select_all(action='DESELECT')
+bpy.ops.object.mode_set(mode='OBJECT')
+
+for idx in INDICES:
+    if idx < len(obj.data.vertices):
+        obj.data.vertices[idx].select = True
+
+bpy.ops.object.mode_set(mode='EDIT')
+print(f"Seleccionados {len(INDICES)} keypoints en la malla")
+
+# --- Handler: dibuja etiquetas 2D sobre cada vértice ---
+def draw_vertex_labels():
+    obj = bpy.data.objects.get("Oleaje")
+    if not obj:
+        return
+
+    region = bpy.context.region
+    rv3d  = bpy.context.region_data
+    if not region or not rv3d:
+        return
+
+    mat = obj.matrix_world
+    font_id = 0
+
+    for idx in INDICES:
+        if idx >= len(obj.data.vertices):
+            continue
+
+        # Posición 3D del vértice en espacio mundo
+        v_world = mat @ obj.data.vertices[idx].co
+
+        # Proyectar a coordenadas 2D de pantalla
+        from bpy_extras.view3d_utils import location_3d_to_region_2d
+        co_2d = location_3d_to_region_2d(region, rv3d, v_world)
+        if co_2d is None:
+            continue
+
+        # Dibujar el número índice
+        blf.size(font_id, 12)
+        blf.color(font_id, 1.0, 0.8, 0.0, 1.0)   # amarillo
+        blf.position(font_id, co_2d.x + 4, co_2d.y + 4, 0)
+        blf.draw(font_id, str(idx))
+
+# Evita registrar el handler varias veces si se re-ejecuta el script
+handler_tag = "_vertex_label_handler"
+
+for h in bpy.app.handlers.depsgraph_update_post:
+    if getattr(h, "__name__", "") == "draw_vertex_labels":
+        bpy.app.handlers.depsgraph_update_post.remove(h)
+
+# Registrar como handler de draw en el espacio 3D
+if hasattr(bpy.types.SpaceView3D, "draw_handler_add"):
+    # Eliminar handler previo si existe
+    if hasattr(bpy, "_oleaje_label_handler"):
+        try:
+            bpy.types.SpaceView3D.draw_handler_remove(bpy._oleaje_label_handler, 'WINDOW')
+        except:
+            pass
+    bpy._oleaje_label_handler = bpy.types.SpaceView3D.draw_handler_add(
+        draw_vertex_labels, (), 'WINDOW', 'POST_PIXEL'
+    )
+    print("Handler de etiquetas registrado. Para quitarlo, ejecuta el script de limpieza.")
+ 

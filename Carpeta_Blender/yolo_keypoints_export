@@ -1,0 +1,177 @@
+import bpy
+import os
+import random
+from mathutils import Vector
+from bpy_extras.object_utils import world_to_camera_view  # ← CORRECCIÓN: función oficial de Blender
+
+# -----------------------------------------------------------------------------
+#  CONFIGURACIÓN
+# -----------------------------------------------------------------------------
+NOMBRE_MALLA = "Oleaje"
+INDICES_VERTICES = [
+    25606, 25745, 25128, 24439, 23685, 22991, 22718, 21627, 27968, 26985, 26283, 25778, 25104, 24167, 23454, 22962, 28073, 27485, 26834, 26321, 25670, 25201, 24944, 24035
+]
+
+DIRECTORIO_SALIDA = "C:\ensayo correcto TFG\datasetcorrecto1000frames\dataset_CFD_mejorado"
+FRAME_INICIO = 1
+FRAME_FIN    = 1000
+PREFIJO      = "frame"
+CLASE_ID     = 0
+SEED         = 42
+
+P_TRAIN = 0.70
+P_VAL   = 0.20
+
+# -----------------------------------------------------------------------------
+#  BBOX FIJO — mide estos valores con la herramienta y sustitúyelos aquí
+#  La cámara está fija y el barco no se mueve, así que el bbox es siempre igual
+# -----------------------------------------------------------------------------
+BBOX_FIJO = {
+    "cx": 0.4844,
+    "cy": 0.5039,
+    "w":  0.9000,
+    "h":  0.4016,
+}
+# -----------------------------------------------------------------------------
+
+def obtener_camara():
+    cam = bpy.context.scene.camera
+    if not cam:
+        raise RuntimeError("No hay cámara activa.")
+    return cam
+
+def obtener_coord_vertice(obj, indice, frame_actual):
+    bpy.context.scene.frame_set(frame_actual)
+    bpy.context.view_layer.update()
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    obj_eval  = obj.evaluated_get(depsgraph)
+    mesh_eval = obj_eval.to_mesh()
+    co_local  = mesh_eval.vertices[indice].co.copy()
+    obj_eval.to_mesh_clear()
+    return obj.matrix_world @ co_local
+
+# -----------------------------------------------------------------------------
+#  CORRECCIÓN PRINCIPAL: proyección usando world_to_camera_view de Blender
+#  La función anterior tenía un bug: dividía x_ndc por el aspect ratio (1920/1080)
+#  lo que comprimía todos los keypoints hacia el centro horizontalmente.
+#  world_to_camera_view maneja internamente la proyección perspectiva y el
+#  aspect ratio de forma correcta.
+# -----------------------------------------------------------------------------
+def mundo_a_pantalla(coord_3d, camara, escena):
+    render = escena.render
+    res_x = render.resolution_x * render.resolution_percentage / 100
+    res_y = render.resolution_y * render.resolution_percentage / 100
+
+    # Devuelve Vector(x, y, z) donde:
+    #   x, y están en [0, 1] — coordenadas normalizadas dentro del frame
+    #   z    es la distancia a la cámara (> 0 si está delante)
+    co_ndc = world_to_camera_view(escena, camara, Vector(coord_3d))
+
+    x_px = co_ndc.x * res_x
+    # Y invertida: en Blender Y=0 es la parte inferior, en imagen Y=0 es la parte superior
+    y_px = (1.0 - co_ndc.y) * res_y
+
+    dentro = (co_ndc.z > 0 and 0 <= x_px <= res_x and 0 <= y_px <= res_y)
+    return x_px, y_px, dentro
+
+def calcular_bbox():
+    return BBOX_FIJO["cx"], BBOX_FIJO["cy"], BBOX_FIJO["w"], BBOX_FIJO["h"]
+
+def escribir_txt_yolo(ruta, clase_id, bbox, puntos_px, res_x, res_y):
+    cx, cy, w, h = bbox
+    partes = [f"{clase_id} {cx:.6f} {cy:.6f} {w:.6f} {h:.6f}"]
+    for (x_px, y_px, dentro) in puntos_px:
+        if dentro:
+            partes.append(f"{x_px/res_x:.6f} {y_px/res_y:.6f} 1")
+        else:
+            partes.append("0.0 0.0 0")
+    with open(ruta, 'w') as f:
+        f.write(" ".join(partes) + "\n")
+
+def escribir_yaml_completo(ruta_yaml, n_keypoints, dir_salida):
+    contenido = f"""# Dataset YOLO Pose — Oleaje (Train/Val/Test)
+path: {dir_salida}
+train: train/images
+val: val/images
+test: test/images
+
+nc: 1
+names: ['oleaje']
+kpt_shape: [{n_keypoints}, 3]
+"""
+    with open(ruta_yaml, 'w', encoding='utf-8') as f:
+        f.write(contenido)
+
+def repartir_frames_determinista(frame_inicio, frame_fin, p_train, p_val, seed):
+    frames = list(range(frame_inicio, frame_fin + 1))
+    rng = random.Random(seed)
+    rng.shuffle(frames)
+    n_total = len(frames)
+    n_train = int(n_total * p_train)
+    n_val   = int(n_total * p_val)
+    asignacion = {}
+    for f in frames[:n_train]:
+        asignacion[f] = "train"
+    for f in frames[n_train:n_train + n_val]:
+        asignacion[f] = "val"
+    for f in frames[n_train + n_val:]:
+        asignacion[f] = "test"
+    return asignacion
+
+def main():
+    escena  = bpy.context.scene
+    camara  = obtener_camara()
+    render  = escena.render
+    res_x   = render.resolution_x * render.resolution_percentage / 100
+    res_y   = render.resolution_y * render.resolution_percentage / 100
+    obj     = bpy.data.objects.get(NOMBRE_MALLA)
+    if not obj:
+        raise RuntimeError(f"Objeto '{NOMBRE_MALLA}' no encontrado.")
+
+    for sub in ["train", "val", "test"]:
+        os.makedirs(os.path.join(DIRECTORIO_SALIDA, sub, "images"), exist_ok=True)
+        os.makedirs(os.path.join(DIRECTORIO_SALIDA, sub, "labels"), exist_ok=True)
+
+    asignacion = repartir_frames_determinista(FRAME_INICIO, FRAME_FIN, P_TRAIN, P_VAL, SEED)
+
+    bbox = calcular_bbox()
+    print(f"Bbox fijo: cx={bbox[0]:.4f}  cy={bbox[1]:.4f}  w={bbox[2]:.4f}  h={bbox[3]:.4f}")
+    print(f"Resolución: {res_x:.0f} x {res_y:.0f} px")
+
+    for i, frame_num in enumerate(range(FRAME_INICIO, FRAME_FIN + 1)):
+        subfolder      = asignacion[frame_num]
+        nombre_archivo = f"{PREFIJO}_{frame_num:04d}"
+        ruta_img = os.path.join(DIRECTORIO_SALIDA, subfolder, "images", nombre_archivo + ".png")
+        ruta_txt = os.path.join(DIRECTORIO_SALIDA, subfolder, "labels", nombre_archivo + ".txt")
+
+        print(f"[{i+1}/{FRAME_FIN}] -> {subfolder}: Frame {frame_num}")
+
+        escena.frame_set(frame_num)
+        bpy.context.view_layer.update()
+        # Renderizar imagen
+        escena.render.filepath = ruta_img
+        bpy.ops.render.render(write_still=True)
+
+        puntos_px = [
+            mundo_a_pantalla(obtener_coord_vertice(obj, idx, frame_num), camara, escena)
+            for idx in INDICES_VERTICES
+        ]
+
+        # Debug: imprime las coordenadas del primer frame para verificar
+        if frame_num == FRAME_INICIO:
+            print("  [DEBUG] Primeros 3 keypoints (px):")
+            for j, (x_px, y_px, dentro) in enumerate(puntos_px[:3]):
+                print(f"    kp{j}: x={x_px:.1f}  y={y_px:.1f}  dentro={dentro}  "
+                      f"norm=({x_px/res_x:.4f}, {y_px/res_y:.4f})")
+
+        escribir_txt_yolo(ruta_txt, CLASE_ID, bbox, puntos_px, res_x, res_y)
+
+    escribir_yaml_completo(
+        os.path.join(DIRECTORIO_SALIDA, "dataset.yaml"),
+        len(INDICES_VERTICES),
+        DIRECTORIO_SALIDA
+    )
+    print("\n¡Dataset completado con éxito!")
+
+if __name__ == "__main__":
+    main()
