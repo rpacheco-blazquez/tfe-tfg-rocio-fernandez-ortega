@@ -12,19 +12,20 @@ import os
 RUTA_DATASET   = r"C:/ensayo correcto TFG/datasetcorrecto1000frames"
 RUTA_CSVS      = os.path.join(RUTA_DATASET, "CSV MATRIZ X y T")
 RUTA_BASE_RUNS = os.path.join(RUTA_DATASET, "runs", "pose")
+RUTA_DATASET_NUEVO = r"C:\ensayo correcto TFG\datasetcorrecto1000frames\dataset_CFD_mejorado_2"
 
-RUTA_MODELO         = os.path.join(RUTA_BASE_RUNS, "train2", "weights", "best.pt")
+RUTA_MODELO         = os.path.join(RUTA_BASE_RUNS, "train2", "weights", "best.pt") #train 2 no es habra q cambiarlo
 RUTA_MATRICES_CAM   = os.path.join(RUTA_DATASET, "camara_matrices.csv")
-RUTA_Z_METROS_PRED  = os.path.join(RUTA_DATASET, "z_metros.csv")
-RUTA_PRED_CSV       = os.path.join(RUTA_DATASET, "z_metros.csv")
+RUTA_PRED_CSV       = os.path.join(RUTA_DATASET, "z_metros.csv") #es la antigua, ahora se llama elevacion_CFD_metros.csv
 RUTA_SPECTRUM       = r"C:/seafemTFG.gid/Spectrum.out.dat"
 RUTA_GT_ALTURA_CSV  = r"C:/Users/rocio/Repositorio TFG Visual Code/tfe-tfg-rocio-fernandez-ortega/Carpeta Rocio/SCRIPT/alturanodos.csv"
+RUTA_DATASET_YAML = os.path.join(RUTA_DATASET_NUEVO, "dataset.yaml")
 
 DIR_SALIDA_FFT_PRED       = os.path.join(RUTA_DATASET, "FFT3D")
 DIR_SALIDA_FFT_GT         = os.path.join(RUTA_DATASET, "FFT3D_GT", "NUFFT3D1")
 DIR_SALIDA_ENERGIA_GT     = os.path.join(RUTA_DATASET, "energiavsamplitud_GT")
 DIR_SALIDA_VIDEOS         = os.path.join(RUTA_DATASET, "VIDEOS")
-DIR_SALIDA_METRICAS       = os.path.join(RUTA_DATASET, "METRICAS")
+DIR_SALIDA_METRICAS       = os.path.join(RUTA_DATASET_NUEVO, "METRICAS")
 DIR_SALIDA_BEAMFORMING_PRED = os.path.join(RUTA_DATASET,"FFT3D", "BEAMFORMING")
 DIR_SALIDA_BEAMFORMING_GT   = os.path.join(RUTA_DATASET,"FFT3D_GT", "BEAMFORMING")
 DIR_SALIDA_ENERGIAPRED   = os.path.join(RUTA_DATASET, "ENERGIAVSAMPLITUD")
@@ -37,23 +38,20 @@ CARPETAS_LABELS_DIVIDIDAS = [
 ]
 
 CARPETAS_IMAGENES_DIVIDIDAS = {
-    "train": os.path.join(RUTA_DATASET, "train", "images"),
-    "val":   os.path.join(RUTA_DATASET, "val",   "images"),
-    "test":  os.path.join(RUTA_DATASET, "test",  "images"),
+    "train": os.path.join(RUTA_DATASET_NUEVO, "train", "images"),
+    "val":   os.path.join(RUTA_DATASET_NUEVO, "val",   "images"),
+    "test":  os.path.join(RUTA_DATASET_NUEVO, "test",  "images"),
 }
 
 
-RUTA_DATASET_YAML = os.path.join(RUTA_DATASET, "dataset.yaml")
 
-RUTA_DATASET_NUEVO = r"C:\ensayo correcto TFG\datasetcorrecto1000frames\dataset_CFD_mejorado"
+CARPETAS_LABELS_CFD_DIVIDIDAS = {
+    "train": os.path.join(RUTA_DATASET_NUEVO, "train", "labels"),
+    "val":  os.path.join(RUTA_DATASET_NUEVO, "val",   "labels"),
+    "test": os.path.join(RUTA_DATASET_NUEVO, "test",  "labels"),
+}
 
-CARPETAS_LABELS_CFD_DIVIDIDAS = [
-    os.path.join(RUTA_DATASET_NUEVO, "train", "labels"),
-    os.path.join(RUTA_DATASET_NUEVO, "val",   "labels"),
-    os.path.join(RUTA_DATASET_NUEVO, "test",  "labels"),
-]
-
-RUTA_Z_METROS_PRED = os.path.join(RUTA_DATASET_NUEVO, "elevacion_CFD_metros.csv")
+RUTA_Z_METROS_PRED = os.path.join(RUTA_DATASET_NUEVO, "elevacion_CFD_metros.csv")# Revisar porque esta mal ahora que he cambiado la ruta del dataset a _2
 
 # ─────────────────────────────────────────────────────────────────
 # PARÁMETROS DE IMAGEN / DATASET

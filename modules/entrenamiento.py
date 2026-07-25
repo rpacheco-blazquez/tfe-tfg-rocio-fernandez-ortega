@@ -9,7 +9,6 @@ import time
 import csv
 import numpy as np
 from ultralytics import YOLO
-
 import config
 
 
@@ -21,7 +20,7 @@ def calcular_metricas(modelo):
     print("=" * 55)
 
     val_images_dir = config.CARPETAS_IMAGENES_DIVIDIDAS["val"]
-    val_labels_dir = config.CARPETAS_LABELS_GT_DIVIDIDAS["val"]
+    val_labels_dir = config.CARPETAS_LABELS_CFD_DIVIDIDAS["val"]
 
     imagenes = sorted([
         f for f in os.listdir(val_images_dir)
@@ -126,6 +125,7 @@ def entrenar_modelo():
         batch=config.BATCH_SIZE,
         device=config.DEVICE,
         patience=config.PATIENCE,
+        workers=0,
     )
 
     tiempo_min = (time.time() - inicio) / 60

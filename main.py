@@ -38,10 +38,10 @@ from modules import (
 # imágenes ni graficas automáticamente.
 RUN_SAFE_MODE = True
 
-isTrainingRequired         = False   # entrena el modelo desde cero (tarda horas)
-isPredictionRequired       = True   # corre YOLO sobre train/val/test
+isTrainingRequired         = True   # entrena el modelo desde cero (tarda horas)
+isPredictionRequired       = False   # corre YOLO sobre train/val/test
 isVideoRequired             = False   # genera vídeos superpuesto + subplot
-isPixelToMetrosRequired    = True   # convierte labels predichos -> z_metros.csv
+isPixelToMetrosRequired    = False   # convierte labels predichos -> z_metros.csv
 isFFTPredRequired          = False  # FFT 1D + 3D de la PREDICCIÓN
 isFFTGTRequired            = False   # FFT 1D + 3D del GROUNDTRUTH
 isBeamformingRequired      = False  # activar beamforming
@@ -186,7 +186,7 @@ if isEnergia_GT_alturanodos:
     energia_gt_alturanodos.generar_graficas_energia_gt_alturanodos()
 else:
     print("PASO 7a (energía GT alturanodos) omitido.")
-    
+
 # ═════════════════════════════════════════════════════════════════
 # PASO 7b — GRÁFICAS DE ENERGÍA DE LA PREDICCIÓN
 # ═════════════════════════════════════════════════════════════════
@@ -194,8 +194,6 @@ if isenergiapred:
     energiapred.generar_graficas_energiapred()
 else:
     print("PASO 7b (energía predicción) omitido.")
-
-
 
 # ═════════════════════════════════════════════════════════════════
 # PASO 8 — BEAMFORMING TEMPORAL (estimacion direccional)
@@ -233,5 +231,5 @@ if isBeamformingRequired:
         print("⚠️  Activa isBeamformingPred y/o isBeamformingGT.")
 else:
     print("PASO 8 (beamforming) omitido.")
-    
+
 print("\n✅ Pipeline finalizado.")
