@@ -8,8 +8,8 @@ Orden lógico del pipeline:
   2. Predicción sobre train/val/test + vídeos        (prediccion_videos.py)
   3. Extracción de matrices de cámara (Blender)       (camara.py)        [manual, fuera de aquí]
   4. Conversión píxel -> metros (predicción)          (pixel_a_metros.py)
-  5. FFT 1D + FFT 3D + espectro polar de PREDICCIÓN   (fft_analisis.py, espectro_polar.py)
-  6. FFT 1D + FFT 3D + espectro polar de GROUNDTRUTH  (lectura_gt.py, fft_analisis.py, espectro_polar.py)
+    5. FFT 1D + FFT 3D + espectro polar de PREDICCIÓN   (fft_analisis_nuevo.py, espectro_polar.py)
+    6. FFT 1D + FFT 3D + espectro polar de GROUNDTRUTH  (lectura_gt.py, fft_analisis_nuevo.py, espectro_polar.py)
   7. Gráficas de energía E vs A y S(w) vs w del GT     (energia_gt.py)
   8. Gráficas de energía E vs A y S(w) vs w de la PRED  (energia_pred.py)
 """
@@ -25,7 +25,7 @@ from modules import (
     entrenamiento,
     prediccion_videos,
     pixel_a_metros,
-    fft_analisis,
+    fft_analisis_nuevo,
     espectro_polar,
     energia_gt,
     lectura_gt,
@@ -41,17 +41,17 @@ RUN_SAFE_MODE = True
 isTrainingRequired         = False   # entrena el modelo desde cero (tarda horas)
 isPredictionRequired       = False   # corre YOLO sobre train/val/test
 isVideoRequired             = False   # genera vídeos superpuesto + subplot
-isPixelToMetrosRequired    = True   # convierte labels predichos -> z_metros.csv
+isPixelToMetrosRequired    = False   # convierte labels predichos -> z_metros.csv
 isFFTPredRequired          = False  # FFT 1D + 3D de la PREDICCIÓN
 isFFTGTRequired            = False   # FFT 1D + 3D del GROUNDTRUTH
 isBeamformingRequired      = False  # activar beamforming
 isBeamformingPred          = False  # aplicar sobre prediccion
 isBeamformingGT            = False # aplicar sobre GT (alturanodos.csv)
 isComparacionGTvsPredRequired = False  # genera la figura apilada GT vs Predicción
-isEnergiaGTRequired        = False   # gráficas E vs A y S(w) vs w del GT
+isEnergiaGTRequired        = True   # gráficas E vs A y S(w) vs w del GT
 isEnergia_GT_alturanodos   = False # gráficas E vs A y S(w) vs w del GT (alturanodos.csv)
 isComparacionGTSpecVsGTNodos = False #comparacion D.Polar de GT(spectrum) y GT (alturanodos)
-isenergiapred              = False # gráficas E vs A y S(w) vs w de la PREDICCIÓN
+isenergiapred              = True # gráficas E vs A y S(w) vs w de la PREDICCIÓN
 
 if RUN_SAFE_MODE:
     print("MODO SEGUR0 activado: ningún paso de generación de imágenes se ejecutará al lanzar main.py.")
@@ -67,7 +67,9 @@ else:
 # ═════════════════════════════════════════════════════════════════
 # PASO 2 — PREDICCIÓN + VÍDEOS
 # ═════════════════════════════════════════════════════════════════
-if isPredictionRequired:
+if isPredictionRequired or isVideoRequired:
+    if isVideoRequired and not isPredictionRequired:
+        print("PASO 2: generando predicciones con el modelo configurado para crear los vídeos.")
     modules.prediccion_videos.predecir_con_modelo()
 else:
     print("PASO 2 (predicción) omitido — usando labels ya existentes.")
@@ -99,11 +101,11 @@ if isFFTPredRequired:
     n_frames = z_all_pred.shape[0]
     tiempo_vector = np.arange(n_frames) * config.DELTA_T + 30.0
 
-    z_centrada_pred = modules.fft_analisis.fft_1d_por_keypoint(
+    z_centrada_pred = modules.fft_analisis_nuevo.fft_1d_por_keypoint(
         z_all_pred, tiempo_vector, config.DIR_SALIDA_FFT_PRED)
 
-    dir_flat, T_flat, amp_flat = modules.fft_analisis.fft_3d_direccional(z_centrada_pred)
-    G_pred, T_pred, A_pred, dir_bins, _ = modules.fft_analisis.agrupar_en_bins(dir_flat, T_flat, amp_flat)
+    dir_flat, T_flat, amp_flat = modules.fft_analisis_nuevo.fft_3d_direccional(z_centrada_pred)
+    G_pred, T_pred, A_pred, dir_bins, _ = modules.fft_analisis_nuevo.agrupar_en_bins(dir_flat, T_flat, amp_flat)
 
     modules.espectro_polar.guardar_csv_bins(G_pred, T_pred, A_pred,
                                      config.DIR_SALIDA_FFT_PRED, "espectro_3D_bins_pred.csv")
@@ -123,11 +125,11 @@ if isFFTGTRequired:
     z_all_gt, tiempo_vector_gt = modules.lectura_gt.cargar_z_gt()
     etiquetas = modules.lectura_gt.etiquetas_gt()
 
-    z_centrada_gt = modules.fft_analisis.fft_1d_por_keypoint(
+    z_centrada_gt = modules.fft_analisis_nuevo.fft_1d_por_keypoint(
         z_all_gt, tiempo_vector_gt, config.DIR_SALIDA_FFT_GT, etiquetas_kp=etiquetas)
 
-    dir_flat_gt, T_flat_gt, amp_flat_gt = modules.fft_analisis.fft_3d_direccional(z_centrada_gt)
-    G_gt_3d, T_gt_3d, A_gt_3d, dir_bins_gt, _ = modules.fft_analisis.agrupar_en_bins(
+    dir_flat_gt, T_flat_gt, amp_flat_gt = modules.fft_analisis_nuevo.fft_3d_direccional(z_centrada_gt)
+    G_gt_3d, T_gt_3d, A_gt_3d, dir_bins_gt, _ = modules.fft_analisis_nuevo.agrupar_en_bins(
         dir_flat_gt, T_flat_gt, amp_flat_gt)
 
     modules.espectro_polar.guardar_csv_bins(G_gt_3d, T_gt_3d, A_gt_3d,

@@ -294,24 +294,6 @@ def get_dt_from_index(df, fallback_dt, label):
 
 
 # ============================================================
-# GENERAR AMBOS CSVs SINTÉTICOS
-# ============================================================
-print("=" * 60)
-print("GENERANDO SIMULACIONES SINTÉTICAS")
-print("=" * 60)
-print(f"Hs_target={HS_TARGET} m, TM_FORMULA={TM_FORMULA} -> Tm01~9s")
-print(
-    f"gamma={GAMMA}, heading={np.degrees(THETA0):.0f} deg, spreading=cos^{2*SPREADING_S}, width={SPREAD_DEG} deg"
-)
-print()
-
-print("[1/2] 10 frecuencias...")
-z_10, _ = generate_synthetic(10, seed=42)
-print()
-print("[2/2] 499 frecuencias...")
-z_499, _ = generate_synthetic(499, seed=42)
-
-# ============================================================
 # CARGAR alturanodos_CFD_TFG.csv ORIGINAL (necesario ANTES de las FFT
 # para deducir T_MIN / T_MAX a partir del dt y duración reales del CFD)
 # ============================================================
@@ -370,8 +352,6 @@ print("\n" + "=" * 60)
 print("ANÁLISIS FFT (con filtro T_MIN/T_MAX derivado del CFD, dt real por dataset)")
 print("=" * 60)
 
-res_10 = compute_fft(z_10, "10 frecuencias", t_min=T_MIN, t_max=T_MAX, dt_data=DT)
-res_499 = compute_fft(z_499, "499 frecuencias", t_min=T_MIN, t_max=T_MAX, dt_data=DT)
 res_orig = compute_fft(
     z_orig, "alturanodos_CFD_TFG.csv original", t_min=T_MIN, t_max=T_MAX, dt_data=dt_cfd
 )
@@ -391,14 +371,12 @@ omega_anal = df_anal["omega_rad_s"].values
 S_anal = df_anal["S_m2_s_rad"].values
 
 # ============================================================
-# PLOT 4 COLUMNAS: 10 frec | 499 frec | CFD original | z_metros (predicción)
+# PLOT 2 COLUMNAS: CFD original | z_metros (predicción)
 # ============================================================
-fig, axes = plt.subplots(3, 4, figsize=(30, 15))
+fig, axes = plt.subplots(3, 2, figsize=(15, 15))
 fig.subplots_adjust(top=0.84, bottom=0.06, left=0.04, right=0.99, hspace=0.40, wspace=0.24)
 
 datasets = [
-    (res_10, "10 frecuencias\n(sintético)"),
-    (res_499, "499 frecuencias\n(sintético)"),
     (res_orig, "alturanodos_CFD_TFG.csv\n(GT)"),
     (res_zmetros, "z_metros.csv\n(predicción)"),
 ]
@@ -516,8 +494,8 @@ for col, (res, title) in enumerate(datasets):
     ax3.legend(fontsize=8)
     ax3.grid(True, linestyle=":", alpha=0.5)
 
-# ── Línea de referencia analítica en los 4 paneles superiores ──
-for col in range(4):
+# ── Línea de referencia analítica en los 2 paneles superiores ──
+for col in range(2):
     axes[0, col].plot(
         omega_anal,
         S_anal,
@@ -531,5 +509,8 @@ for col in range(4):
 plt.tight_layout()
 ruta = os.path.join(SCRIPT_DIR, "compare_nfreqs.png")
 plt.savefig(ruta, dpi=200, bbox_inches="tight")
-print(f"\n✅ {ruta}")
+ruta_svg = os.path.join(SCRIPT_DIR, "compare_nfreqs.svg")
+plt.savefig(ruta_svg, bbox_inches="tight")
+print(f"\n✅ PNG: {ruta}")
+print(f"✅ SVG: {ruta_svg}")
 plt.show()

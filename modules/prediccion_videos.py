@@ -96,6 +96,12 @@ def _recopilar_frames_en_orden():
             ruta_img_path = os.path.join(ruta_imgs, archivo.replace(".txt", ".png"))
             ruta_gt_txt   = os.path.join(ruta_gt, archivo)
             ruta_pred_txt = os.path.join(ruta_pred, archivo)
+
+            if not os.path.exists(ruta_img_path) or not os.path.exists(ruta_pred_txt):
+                continue
+            if cv2.imread(ruta_img_path) is None:
+                continue
+
             todas_las_frames.append((num, ruta_img_path, ruta_gt_txt, ruta_pred_txt))
 
     todas_las_frames.sort(key=lambda x: x[0])

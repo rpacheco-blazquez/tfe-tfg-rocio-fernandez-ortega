@@ -11,8 +11,9 @@ import os
 # ─────────────────────────────────────────────────────────────────
 RUTA_DATASET   = r"C:/ensayo correcto TFG/datasetcorrecto1000frames"
 RUTA_DATASET_NUEVO = r"C:\ensayo correcto TFG\datasetcorrecto1000frames\dataset_CFD_mejorado_2"
+DIR_SALIDA_GENERAL = r"C:\ensayo correcto TFG\datasetcorrecto1000frames\GRAFICOS ACTUALIZADOS"
 RUTA_CSVS      = os.path.join(RUTA_DATASET, "CSV MATRIZ X y T")
-RUTA_BASE_RUNS = r"C:\TFG_pipeline2\runs\pose"
+RUTA_BASE_RUNS = os.path.join(os.path.dirname(__file__), "runs", "pose")
 
 
 RUTA_MODELO         = os.path.join(RUTA_BASE_RUNS, "train-7", "weights", "best.pt") #train 2 no es habra q cambiarlo
@@ -22,14 +23,14 @@ RUTA_SPECTRUM       = r"C:/seafemTFG.gid/Spectrum.out.dat"
 RUTA_GT_ALTURA_CSV  = r"C:/Users/rocio/Repositorio TFG Visual Code/tfe-tfg-rocio-fernandez-ortega/Carpeta Rocio/SCRIPT/alturanodos.csv"
 RUTA_DATASET_YAML = os.path.join(RUTA_DATASET_NUEVO, "dataset.yaml")
 
-DIR_SALIDA_FFT_PRED       = os.path.join(RUTA_DATASET, "FFT3D")
-DIR_SALIDA_FFT_GT         = os.path.join(RUTA_DATASET, "FFT3D_GT", "NUFFT3D1")
-DIR_SALIDA_ENERGIA_GT     = os.path.join(RUTA_DATASET, "energiavsamplitud_GT")
-DIR_SALIDA_VIDEOS         = os.path.join(RUTA_DATASET_NUEVO, "VIDEOS")
-DIR_SALIDA_METRICAS       = os.path.join(RUTA_DATASET_NUEVO, "METRICAS")
-DIR_SALIDA_BEAMFORMING_PRED = os.path.join(RUTA_DATASET,"FFT3D", "BEAMFORMING")
-DIR_SALIDA_BEAMFORMING_GT   = os.path.join(RUTA_DATASET,"FFT3D_GT", "BEAMFORMING")
-DIR_SALIDA_ENERGIAPRED   = os.path.join(RUTA_DATASET, "ENERGIAVSAMPLITUD")
+DIR_SALIDA_FFT_PRED       = os.path.join(DIR_SALIDA_GENERAL, "FFT3D")
+DIR_SALIDA_FFT_GT         = os.path.join(DIR_SALIDA_GENERAL, "FFT3D_GT", "NUFFT3D1")
+DIR_SALIDA_ENERGIA_GT     = os.path.join(DIR_SALIDA_GENERAL, "energiavsamplitud_GT")
+DIR_SALIDA_VIDEOS         = os.path.join(DIR_SALIDA_GENERAL, "VIDEOS")
+DIR_SALIDA_METRICAS       = os.path.join(DIR_SALIDA_GENERAL, "METRICAS")
+DIR_SALIDA_BEAMFORMING_PRED = os.path.join(DIR_SALIDA_GENERAL, "FFT3D", "BEAMFORMING")
+DIR_SALIDA_BEAMFORMING_GT   = os.path.join(DIR_SALIDA_GENERAL, "FFT3D_GT", "BEAMFORMING")
+DIR_SALIDA_ENERGIAPRED   = os.path.join(DIR_SALIDA_GENERAL, "ENERGIAVSAMPLITUD")
 
 
 

@@ -2,7 +2,7 @@
 csv_fft_plot.py
 Lee un CSV con serie temporal (Tiempo_s, z_m), aplica:
   A) FFT 1D con numpy puro (raw)
-  B) FFT 1D usando fft_1d_por_keypoint de fft_analisis.py
+    B) FFT 1D usando fft_1d_por_keypoint de fft_analisis_nuevo.py
   C) Compara ambas contra el espectro JONSWAP analítico (debug_analytical_spectrum.csv)
 
 Uso:
@@ -22,7 +22,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, ROOT)
 
 import config
-from modules import fft_analisis
+from modules import fft_analisis_nuevo
 
 # ============================================================
 # ARGUMENTOS
@@ -35,7 +35,7 @@ else:
     CSV_ENTRADA = os.path.join(SCRIPT_DIR, "debug_numeric_timeseries.csv")
 
 CSV_ANALYTICAL = os.path.join(SCRIPT_DIR, "debug_analytical_spectrum.csv")
-DIR_DUMMY = "_fftmod_output"  # subcarpeta dentro de debug-jonswap/
+DIR_DUMMY = os.path.join(config.DIR_SALIDA_GENERAL, "_fftmod_output")
 
 print(f"Leyendo serie temporal de: {CSV_ENTRADA}")
 print(f"Directorio dummy para fft_1d_por_keypoint: {DIR_DUMMY}/")
@@ -55,7 +55,7 @@ dw = 2.0 * np.pi * df_hz
 print(f"N={N}  dt={dt}s  T_total={N*dt:.1f}s  df={df_hz:.4f}Hz  dw={dw:.4f}rad/s")
 
 # ============================================================
-# 2. FFT RAW CON NUMPY (réplica exacta de fft_analisis.py líneas ~79-88)
+# 2. FFT RAW CON NUMPY (réplica exacta de fft_analisis_nuevo.py líneas ~79-88)
 # ============================================================
 z_centrada_raw = z_1col - np.mean(z_1col)
 
@@ -69,7 +69,7 @@ amps_raw = (2.0 / N) * np.abs(fft_vals_raw[idx_pos_raw])
 # Convertir amplitudes a densidad espectral: S = A² / (2*dw)
 S_numpy = (amps_raw**2) / (2.0 * dw)
 
-# ── Parámetros espectrales FFT numpy raw (misma lógica que fft_analisis.py) ──
+# ── Parámetros espectrales FFT numpy raw (misma lógica que fft_analisis_nuevo.py) ──
 idx_filt_raw = np.where(freqs_pos_raw <= config.FILTRO_FREC_MAX_HZ)[0]
 amps_filt_raw = amps_raw[idx_filt_raw]
 freqs_filt_raw = freqs_pos_raw[idx_filt_raw]
@@ -86,7 +86,7 @@ Tp_np = 1.0 / freqs_pos_raw[idx_pico_np] if freqs_pos_raw[idx_pico_np] > 0 else 
 print(f"FFT numpy raw — Hs={Hs_np:.2f}m  Tp={Tp_np:.2f}s  Tm01={Tm01_np:.2f}s")
 
 # ============================================================
-# 3. FFT USANDO fft_1d_por_keypoint de fft_analisis.py
+# 3. FFT USANDO fft_1d_por_keypoint de fft_analisis_nuevo.py
 #    La función espera (N_frames, 24 keypoints) → duplicamos la señal 24 veces.
 # ============================================================
 z_24cols = np.tile(z_1col.reshape(-1, 1), (1, config.NUM_KEYPOINTS))
@@ -96,7 +96,7 @@ z_24cols = np.tile(z_1col.reshape(-1, 1), (1, config.NUM_KEYPOINTS))
 delta_t_original = config.DELTA_T
 config.DELTA_T = dt
 
-z_centrada_fftmod = fft_analisis.fft_1d_por_keypoint(
+z_centrada_fftmod = fft_analisis_nuevo.fft_1d_por_keypoint(
     z_all=z_24cols,
     tiempo_vector=tiempo,
     dir_salida=DIR_DUMMY,

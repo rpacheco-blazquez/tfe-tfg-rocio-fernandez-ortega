@@ -126,11 +126,14 @@ def entrenar_modelo():
         device=config.DEVICE,
         patience=config.PATIENCE,
         workers=0,
+        project=config.RUTA_BASE_RUNS,
+        name="train-7",
+        exist_ok=True,
     )
 
     tiempo_min = (time.time() - inicio) / 60
     print(f"\n  ✅ Entrenamiento completado en {tiempo_min:.1f} min ({tiempo_min/60:.2f} h)")
-    print(f"  Modelo guardado en: runs/train/weights/best.pt")
+    print(f"  Modelo guardado en: {config.RUTA_MODELO}")
 
     calcular_metricas(modelo)
     return modelo

@@ -14,6 +14,8 @@ import config
 
 def convertir_pixeles_a_metros():
     """Lee los labels predichos, aplica la fórmula z_v y guarda z_metros.csv."""
+    from modules.prediccion_videos import _recopilar_frames_en_orden
+
     print("Cargando parámetros de cámara...")
     df_cam = pd.read_csv(config.RUTA_MATRICES_CAM)
     params = dict(zip(df_cam['parametro'], df_cam['valor']))
@@ -51,25 +53,14 @@ def convertir_pixeles_a_metros():
     z_v_test = num_v_test / den_v_test
     print(f"\n  Verificación KP00: z_v={z_v_test:.4f}m (real=0.2231m)")
 
-    # Cargar labels predichos (generados por predecir_con_modelo() en prediccion_videos.py)
-    print("\nCargando labels de predicción...")
-    todos_los_txt = []
-    for split in ["train", "val", "test"]:
-        carpeta = os.path.join(config.RUTA_BASE_RUNS, f"pred_{split}", "labels")
-        if os.path.exists(carpeta):
-            for archivo in os.listdir(carpeta):
-                if archivo.endswith('.txt'):
-                    todos_los_txt.append(os.path.join(carpeta, archivo))
-        else:
-            print(f"  ⚠️  No encontrada: {carpeta}")
-            
-    def _extraer_numero(ruta):
-        digitos = ''.join(filter(str.isdigit, os.path.basename(ruta)))
-        return int(digitos) if digitos else 0
-
-    todos_los_txt.sort(key=_extraer_numero)
+    # Usar exactamente los frames válidos que también consume el generador de vídeo.
+    print("\nCargando labels de predicción de los frames usados en vídeo...")
+    frames = _recopilar_frames_en_orden()
+    todos_los_txt = [ruta_pred_txt for _, _, _, ruta_pred_txt in frames]
     n_frames = len(todos_los_txt)
     print(f"  Total frames: {n_frames}")
+    if n_frames == 0:
+        raise ValueError("No hay frames comunes entre imágenes, labels GT y predicciones.")
 
     # Calcular z(t) con la ecuación v para todos los frames y keypoints
     print("\nCalculando z(t) con ecuación v frame a frame...")
